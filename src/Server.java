@@ -12,6 +12,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Server {
 
@@ -21,6 +22,7 @@ public class Server {
     public long blockDuration;
     public long timeout;
     private static HashMap<String, User> data = new HashMap<>();
+    public ReentrantLock synLock = new ReentrantLock();
     private static ArrayList<ClientThread> clients = new ArrayList<>();
 
     public Server(long blockDuration, long timeout) {
@@ -28,6 +30,7 @@ public class Server {
         this.timeout = timeout;
     }
 
+    // turn data into Hashmaps and return it
     public HashMap<String, User> getData() {
         File file = new File("src/credentials.txt");
         BufferedReader fileReader = null;
@@ -41,7 +44,7 @@ public class Server {
                 String username = userInfo[0];
                 String password = userInfo[1];
 
-                data.put(username, new User(password));
+                data.put(username, new User(username, password));
             }
         } catch (Exception e) {
             System.out.println("Credential File Does Not Exist!");
@@ -61,11 +64,28 @@ public class Server {
             fileWriter.newLine();
             fileWriter.close();
 
-            data.put(username, new User(password));
+            data.put(username, new User(username, password));
         } catch (Exception e) {
             System.out.println("Credential File Does Not Exist!");
             e.printStackTrace();
         }
+    }
+
+    public void broadcast (User sender, String type) throws IOException {
+        synLock.lock();
+        System.out.println("Broadcasting a message.");
+        for (ClientThread client : clients) {
+            User user = client.getUser();
+            if (user != null && (!user.getUsername().equals(sender.getUsername()))) {
+                if (type.equals("ONLINE")) {
+                    client.broadcast(user.getUsername() + " " + "is online.");
+                } else {
+                    client.broadcast(user.getUsername() + " " + "is offline.");
+                }
+            }
+        }
+
+        synLock.unlock();
     }
 
     public static void main(String[] args) throws IOException {

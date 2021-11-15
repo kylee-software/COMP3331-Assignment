@@ -174,7 +174,7 @@ public class Client {
                         break;
                     }
                     case "broadcast" -> {
-                        break;
+                        System.out.println(input[1]);
                     }
                     case "whoelse" -> {
                         break;

@@ -3,6 +3,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 
 public class User {
+    private String username;
     private String password;
     private String loginStatus;
     private int loginAttempts;
@@ -10,12 +11,16 @@ public class User {
     private LocalDateTime lastLogin;
     private ArrayList<String> blacklist;
 
-    User(String password) {
+    User(String username, String password) {
+        this.username = username;
         this.password = password;
         this.loginStatus = "ONLINE";
         blacklist = new ArrayList<>();
     }
 
+    public String getUsername() {
+        return this.username;
+    }
     public void setPassword(String newPass) {
         this.password = newPass;
     }

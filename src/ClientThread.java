@@ -25,27 +25,32 @@ public class ClientThread extends Thread {
         data = server.getData();
     }
 
+    public User getUser() {
+        return user;
+    }
+
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                        User Authentication                     │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
     private String login(String username, String password) throws IOException {
-        User user = data.get(username);
-        if (user == null){
+        User loginUser = data.get(username);
+        if (loginUser == null){
             // check valid username
             return "USERNAME";
-        } else if (user.isBlocked(server.blockDuration)) {
+        } else if (loginUser.isBlocked(server.blockDuration)) {
             // check if the system blocked the user or not
             return "BLOCKED";
-        } else if (user.getLoginStatus().equals("ONLINE")) {
+        } else if (loginUser.getLoginStatus().equals("ONLINE")) {
             return "ONLINE";
-        } else if (user.isCorrectPassword(password)) {
-            user.resetAttempts();
-            user.setLoginStatus("ONLINE");
+        } else if (loginUser.isCorrectPassword(password)) {
+            loginUser.resetAttempts();
+            loginUser.setLoginStatus("ONLINE");
+            user = loginUser;
             return "SUCCESS";
         } else {
-            if (user.getLoginAttempts() == 3) {
-                user.setLoginStatus("BLOCKED");
+            if (loginUser.getLoginAttempts() == 3) {
+                loginUser.setLoginStatus("BLOCKED");
                 return "BLOCKED";
             }
             return "PASSWORD";
@@ -58,6 +63,7 @@ public class ClientThread extends Thread {
         } else {
             server.saveData(username, password);
             data = server.getData();
+            user = data.get(username);
             return "SUCCESS";
         }
     }
@@ -70,6 +76,10 @@ public class ClientThread extends Thread {
     /* │                        Presence Broadcasts                     │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
+        public void broadcast(String message) throws IOException {
+            dataOutputStream.writeUTF("broadcast" + " " + message);
+            dataOutputStream.flush();
+        }
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                      List of Online User                       │ */
     /* └────────────────────────────────────────────────────────────────┘ */
@@ -115,6 +125,7 @@ public class ClientThread extends Thread {
         while (clientAlive) {
             try {
                 String[] message = ((String) dataInputStream.readUTF()).split(" ");
+                server.synLock.lock();
                 String toSend = null;
 
                 switch (message[0]) {
@@ -125,6 +136,7 @@ public class ClientThread extends Thread {
                         toSend = login(username, password);
                         dataOutputStream.writeUTF(toSend);
                         dataOutputStream.flush();
+                        server.broadcast(user, "ONLINE");
                     }
                     case "register" -> {
                         String username = message[1];
@@ -132,6 +144,7 @@ public class ClientThread extends Thread {
                         toSend = register(username, password);
                         dataOutputStream.writeUTF(toSend);
                         dataOutputStream.flush();
+                        server.broadcast(user, "ONLINE");
                     }
                     case "message" -> {
                         break;
@@ -152,10 +165,13 @@ public class ClientThread extends Thread {
                         break;
                     }
                     case "logout" -> {
-                        User user = data.get(message[1]);
                         user.setLoginStatus("OFFLINE");
+                        server.broadcast(user, "OFFLINE");
+                        user = null;
                     }
                 }
+
+                server.synLock.unlock();
 
             } catch (EOFException e) {
                 System.out.println("===== the user disconnected, user - " + clientID);
