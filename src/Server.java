@@ -71,12 +71,12 @@ public class Server {
         }
     }
 
-    public void broadcast (User sender, String type) throws IOException {
+    public void broadcast (String sender, String type) throws Exception {
         synLock.lock();
         System.out.println("Broadcasting a message.");
         for (ClientThread client : clients) {
             User user = client.getUser();
-            if (user != null && (!user.getUsername().equals(sender.getUsername()))) {
+            if (user != null && (!user.getUsername().equals(sender))) {
                 if (type.equals("ONLINE")) {
                     client.broadcast(user.getUsername() + " " + "is online.");
                 } else {

@@ -1,10 +1,7 @@
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.EOFException;
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Arrays;
 import java.util.HashMap;
 
 public class ClientThread extends Thread {
@@ -12,10 +9,10 @@ public class ClientThread extends Thread {
     private final Socket clientSocket;
     private HashMap<String, User> data;
     private User user;
-    // used to acquire input from client
-    private DataInputStream dataInputStream;
     // used to send data to client
-    private DataOutputStream dataOutputStream;
+    private ObjectOutputStream objectOutputStream;
+    // used to acquire input from client
+    private ObjectInputStream objectInputStream;
 
     ClientThread(Server server, Socket clientSocket) {
         this.server = server;
@@ -33,7 +30,7 @@ public class ClientThread extends Thread {
     /* │                        User Authentication                     │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-    private String login(String username, String password) throws IOException {
+    private String login(String username, String password) throws Exception {
         User loginUser = data.get(username);
         if (loginUser == null){
             // check valid username
@@ -47,6 +44,7 @@ public class ClientThread extends Thread {
             loginUser.resetAttempts();
             loginUser.setLoginStatus("ONLINE");
             user = loginUser;
+            server.broadcast(username, "ONLINE");
             return "SUCCESS";
         } else {
             if (loginUser.getLoginAttempts() == 3) {
@@ -57,7 +55,7 @@ public class ClientThread extends Thread {
         }
     }
 
-    private String register(String username, String password) throws IOException {
+    private String register(String username, String password) throws Exception {
         if (data.get(username) != null) {
             return "USERNAME";
         } else {
@@ -76,9 +74,11 @@ public class ClientThread extends Thread {
     /* │                        Presence Broadcasts                     │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-        public void broadcast(String message) throws IOException {
-            dataOutputStream.writeUTF("broadcast" + " " + message);
-            dataOutputStream.flush();
+        public void broadcast(String messageBody) throws Exception {
+            Message message = new Message("broadcast");
+            message.setMessage(messageBody);
+            objectOutputStream.writeObject(message);
+            objectOutputStream.flush();
         }
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                      List of Online User                       │ */
@@ -91,6 +91,10 @@ public class ClientThread extends Thread {
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                          Message Forwarding                    │ */
     /* └────────────────────────────────────────────────────────────────┘ */
+
+//        public void sendMessage(Message messageBody) {
+//
+//        }
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                           Offline Messaging                    │ */
@@ -116,37 +120,50 @@ public class ClientThread extends Thread {
         boolean clientAlive = true;
 
         try {
-            dataInputStream = new DataInputStream(this.clientSocket.getInputStream());
-            dataOutputStream = new DataOutputStream(this.clientSocket.getOutputStream());
-        } catch (IOException e) {
+            objectOutputStream = new ObjectOutputStream(this.clientSocket.getOutputStream());
+            objectInputStream = new ObjectInputStream(this.clientSocket.getInputStream());
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
         while (clientAlive) {
             try {
-                String[] message = ((String) dataInputStream.readUTF()).split(" ");
+                Message inputMessage = (Message) objectInputStream.readObject();
+                String type = inputMessage.getType();
+                String[] messageBody = inputMessage.getMessage().split(" ");
                 server.synLock.lock();
                 String toSend = null;
 
-                switch (message[0]) {
+                switch (type) {
                     case "login" -> {
                         // get username and password from client
-                        String username = message[1];
-                        String password = message[2];
+                        String username = messageBody[0];
+                        String password = messageBody[1];
                         toSend = login(username, password);
-                        dataOutputStream.writeUTF(toSend);
-                        dataOutputStream.flush();
-                        server.broadcast(user, "ONLINE");
+
+                        Message outputMessage = new Message("login");
+                        outputMessage.setMessage(username + " " + toSend);
+                        objectOutputStream.writeObject(outputMessage);
+                        objectOutputStream.flush();
+
+                        if (toSend.equals("SUCCESS")) {
+                            server.broadcast(username, "broadcast");
+                        }
                     }
                     case "register" -> {
-                        String username = message[1];
-                        String password = message[2];
+                        String username = messageBody[0];
+                        String password = messageBody[1];
                         toSend = register(username, password);
-                        dataOutputStream.writeUTF(toSend);
-                        dataOutputStream.flush();
-                        server.broadcast(user, "ONLINE");
+                        Message outputMessage = new Message("login");
+                        outputMessage.setMessage(username + " " + toSend);
+                        objectOutputStream.writeObject(outputMessage);
+                        objectOutputStream.flush();
+
+                        if (toSend.equals("SUCCESS")) {
+                            server.broadcast(username, "broadcast");
+                        }
                     }
-                    case "message" -> {
+                    case "messageBody" -> {
                         break;
                     }
                     case "broadcast" -> {
@@ -166,17 +183,15 @@ public class ClientThread extends Thread {
                     }
                     case "logout" -> {
                         user.setLoginStatus("OFFLINE");
-                        server.broadcast(user, "OFFLINE");
+                        server.broadcast(user.getUsername(), "OFFLINE");
                         user = null;
                     }
                 }
-
                 server.synLock.unlock();
-
             } catch (EOFException e) {
                 System.out.println("===== the user disconnected, user - " + clientID);
                 clientAlive = false;
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
