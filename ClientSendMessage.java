@@ -77,7 +77,7 @@ public class ClientSendMessage extends Thread {
 
                     switch (command[0]) {
                         case "message" -> {
-                            break;
+                            sendMessage("message", command[1] + " " + command[2]);
                         }
                         case "broadcast" -> {
                             break;

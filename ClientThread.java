@@ -1,11 +1,8 @@
-import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.EOFException;
 import java.net.Socket;
-import java.text.MessageFormat;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 
 public class ClientThread extends Thread {
     private final Server server;
@@ -81,16 +78,16 @@ public class ClientThread extends Thread {
 
                     }
                     case "message" -> {
-                        Message newMessage = new Message(user.getUsername(), "message");
+                        Message newMessage = new Message(user.getUsername(), "broadcast");
                         newMessage.setReceiver(messageBody[0]);
                         newMessage.setMessage(messageBody[1]);
-                        message(newMessage);
+                        sendMessage(newMessage);
                     }
                     case "broadcast" -> {
                         String username = user.getUsername();
                         Message broadcastMsg = new Message(username, "broadcast");
                         broadcastMsg.setMessage(String.join( " ", messageBody));
-                        server.broadcast(broadcastMsg);
+                        server.broadcast("message", broadcastMsg);
                     }
                     case "whoelse" -> {
                         break;
@@ -178,7 +175,7 @@ public class ClientThread extends Thread {
             String username = user.getUsername();
             Message broadcastMsg = new Message(username, "broadcast");
             broadcastMsg.setMessage(username + " is " + type);
-            server.broadcast(broadcastMsg);
+            server.broadcast("presence", broadcastMsg);
         }
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                      List of Online User                       │ */
@@ -192,7 +189,7 @@ public class ClientThread extends Thread {
     /* │                          Message Forwarding                    │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-        public void message(Message message) throws Exception {
+        public void sendMessage(Message message) throws Exception {
             String sender = message.getSender();
             String target = message.getReceiver();
             User user = server.getUser(target);
@@ -201,9 +198,9 @@ public class ClientThread extends Thread {
             if (user == null) {
                 sendClient.setMessage("USERNAME");
             }else if (user.isUserBlacklisted(sender)) {
-                sendClient.setMessage("BLOCKED");
+                sendClient.setMessage("BLOCKED" + " " + target);
             } else if (!user.getLoginStatus().equals("ONLINE")) {
-                sendClient.setMessage("OFFLINE");
+                sendClient.setMessage("OFFLINE" + " " + target);
             } else {
                 ClientThread targetServer = server.getClientServer(target);
                 targetServer.receiveBroadcast(message);

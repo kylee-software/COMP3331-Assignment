@@ -10,12 +10,14 @@ public class User {
     private LocalDateTime blockedTime;
     private LocalDateTime lastLogin;
     private ArrayList<String> blacklist;
+    private ArrayList<Message> messages;
 
     User(String username, String password) {
         this.username = username;
         this.password = password;
         this.loginStatus = "ONLINE";
         blacklist = new ArrayList<>();
+        messages = new ArrayList<>();
     }
 
     public String getUsername() {
@@ -77,5 +79,17 @@ public class User {
 
     public boolean isUserBlacklisted(String username) {
         return blacklist.contains(username);
+    }
+
+    public void addOfflineMessage(Message message) {
+        messages.add(message);
+    }
+
+    public void resetMessages() {
+        messages.clear();
+    }
+
+    public ArrayList<Message> getMessages() {
+        return messages;
     }
 }

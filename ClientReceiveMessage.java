@@ -7,6 +7,13 @@ public class ClientReceiveMessage extends Thread {
     private Socket clientSocket;
     private ObjectInputStream inputStream;
 
+    // Text coloring for text
+    final String ANSI_RESET = "\u001B[0m";
+    final String ANSI_RESET_BACKGROUND = "\u001B[47m";
+    final String ANSI_SERVER = "\u001B[34m";
+    final String ANSI_USER_BACKGROUND = "\u001B[42m";
+    final String ANSI_USER = "\u001B[37m";
+
     ClientReceiveMessage(Client client, Socket clientSocket) throws IOException {
         this.client = client;
         this.clientSocket = clientSocket;
@@ -36,7 +43,18 @@ public class ClientReceiveMessage extends Thread {
                         register(loginStatus, username);
                     }
                     case "broadcast" -> {
-                        System.out.println(String.join(" ", messageBody));
+                        String sender = inputMessage.getSender();
+
+                        if (sender.equals("SERVER")) {
+                            System.out.println(ANSI_SERVER + sender + ANSI_RESET + " " + String.join(" ", messageBody));
+                        } else {
+                            System.out.println(
+                                    ANSI_USER + ANSI_USER_BACKGROUND + sender + ANSI_RESET + ANSI_RESET_BACKGROUND +
+                                    " " + String.join(" ", messageBody));
+                        }
+                    }
+                    case "message" -> {
+                        message(messageBody);
                     }
                 }
             } catch (Exception e) {
@@ -76,6 +94,29 @@ public class ClientReceiveMessage extends Thread {
             client.setLoginStatus(true);
             client.setUser(username);
             System.out.println("You have successfully created an account! Welcome to the SQUAD " + username + "!");
+        }
+    }
+
+    private void message(String[] response) {
+        String status = response[0];
+
+        switch (status) {
+            case "USERNAME" -> {
+                System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + " user does not exist!");
+            }
+            case "BLOCKED" -> {
+                System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + " You do not have the permission to send a " +
+                                   "message to " + ANSI_USER + response[1] + ANSI_RESET + " !");
+            }
+            case "OFFLINE" -> {
+                System.out.println(
+                        ANSI_SERVER + "SERVER" + ANSI_RESET + " Message is sent but " + ANSI_USER + response[1] +
+                        ANSI_RESET + " is offline right now.");
+            }
+            case "SUCCESS" -> {
+                System.out.println(ANSI_SERVER + "SERVER" + " " + ANSI_USER + response[1] + ANSI_RESET +
+                                   " have received the message successfully!");
+            }
         }
     }
 

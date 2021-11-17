@@ -32,7 +32,7 @@ public class Server {
 
     // turn data into Hashmaps and return it
     private static void generateData() {
-        File file = new File("src/credentials.txt");
+        File file = new File("credentials.txt");
         BufferedReader fileReader = null;
         // Getting user login information from the credential file
         try {
@@ -57,7 +57,7 @@ public class Server {
         BufferedWriter fileWriter = null;
 
         try {
-            fileWriter = new BufferedWriter(new FileWriter("src/credentials.txt", true));
+            fileWriter = new BufferedWriter(new FileWriter("credentials.txt", true));
             fileWriter.write(username + " " + password);
             fileWriter.newLine();
             fileWriter.close();
@@ -86,7 +86,7 @@ public class Server {
         return null;
     }
 
-    public void broadcast(Message message) throws Exception {
+    public void broadcast(String type, Message message) throws Exception {
         String sender = message.getSender();
 
         System.out.println("Broadcasting a message to all online users.");
@@ -94,8 +94,13 @@ public class Server {
         for (ClientThread client : clients) {
             User user = client.getUser();
             if (user != null && (!user.getUsername().equals(sender))) {
-                if (!user.isUserBlacklisted(sender)) {
+                if (type.equals("presence")) {
+                    message.setMessage("SERVER");
                     client.receiveBroadcast(message);
+                } else {
+                    if (!user.isUserBlacklisted(sender)) {
+                        client.receiveBroadcast(message);
+                    }
                 }
             }
         }
