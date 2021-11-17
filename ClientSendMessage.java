@@ -28,11 +28,11 @@ public class ClientSendMessage extends Thread {
 
         while (true) {
             try {
-                Thread.sleep(1000);
                 isLoggedIn = client.isLoggedIn();
                 user = client.getUser();
 
                 if (!isLoggedIn) {
+                    Thread.sleep(1000);
                     if (user == null) {
                         System.out.println("============= Welcome to the Greatest Messaging System! =============");
                         System.out.println("Action: login or register?");
@@ -80,33 +80,36 @@ public class ClientSendMessage extends Thread {
                             sendMessage("message", command[1] + " " + command[2]);
                         }
                         case "broadcast" -> {
-                            break;
+                            sendMessage("broadcast", command[1]);
                         }
                         case "whoelse" -> {
-                            break;
+                            sendMessage("whoelse","N/A");
                         }
                         case "whoelsesince" -> {
-                            break;
+                            sendMessage("whoelsesince", command[1]);
                         }
                         case "block" -> {
-                            break;
+                            sendMessage("block", command[1]);
                         }
                         case "unblock" -> {
-                            break;
+                            sendMessage("unblock", command[1]);
                         }
                         case "logout" -> {
                             logout();
+                            sendMessage("logout", "N/A");
                         }
                         case "exit" -> {
                             logout();
                             // send a message to server to close input stream
-                            outputStream.close();
+                            sendMessage("exit", "N/A");
                             clientSocket.close();
+                            outputStream.close();
                         }
                     }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
+                break;
             }
         }
     }
@@ -121,7 +124,6 @@ public class ClientSendMessage extends Thread {
     private void logout() throws Exception {
         client.setLoginStatus(false);
         client.setUser(null);
-        sendMessage("logout", "offline");
         user = null;
     }
 }

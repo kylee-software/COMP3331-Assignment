@@ -10,101 +10,154 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class Server {
 
     // Server information
     private static ServerSocket serverSocket;
     private static Integer serverPort;
-    public long blockDuration;
-    public long timeout;
+    public final long BLOCK_DURATION;
+    public final long TIMEOUT;
+    public final LocalDateTime START_TIME;
+
     private static HashMap<String, User> data = new HashMap<>();
-    public ReentrantLock synLock = new ReentrantLock();
     private static ArrayList<ClientThread> clients = new ArrayList<>();
 
     public Server(long blockDuration, long timeout) {
-        this.blockDuration = blockDuration;
-        this.timeout = timeout;
+        BLOCK_DURATION = blockDuration;
+        TIMEOUT = timeout;
+        START_TIME = LocalDateTime.now();
     }
 
-    // turn data into Hashmaps and return it
-    private static void generateData() {
-        File file = new File("credentials.txt");
-        BufferedReader fileReader = null;
-        // Getting user login information from the credential file
-        try {
-            fileReader = new BufferedReader(new FileReader(file));
-            String line = null;
+    /* ┌────────────────────────────────────────────────────────────────┐ */
+    /* │                       Users Related Functions                  │ */
+    /* └────────────────────────────────────────────────────────────────┘ */
+        // turn data into Hashmaps and return it
+        private static void generateData() {
+            File file = new File("credentials.txt");
+            BufferedReader fileReader = null;
+            // Getting user login information from the credential file
+            try {
+                fileReader = new BufferedReader(new FileReader(file));
+                String line = null;
 
-            while ((line = fileReader.readLine()) != null) {
-                String[] userInfo = line.split(" ");
-                String username = userInfo[0];
-                String password = userInfo[1];
+                while ((line = fileReader.readLine()) != null) {
+                    String[] userInfo = line.split(" ");
+                    String username = userInfo[0];
+                    String password = userInfo[1];
+
+                    data.put(username, new User(username, password));
+                }
+            } catch (Exception e) {
+                System.out.println("Credential File Does Not Exist!");
+                e.printStackTrace();
+            }
+        }
+
+        // Save all the changes to a user's information
+        public void addUser(String username, String password) {
+            BufferedWriter fileWriter = null;
+
+            try {
+                fileWriter = new BufferedWriter(new FileWriter("credentials.txt", true));
+                fileWriter.write(username + " " + password);
+                fileWriter.newLine();
+                fileWriter.close();
 
                 data.put(username, new User(username, password));
-            }
-        } catch (Exception e) {
-            System.out.println("Credential File Does Not Exist!");
-            e.printStackTrace();
-        }
-    }
-
-    // Save all the changes to a user's information
-    public void addUser(String username, String password) {
-        BufferedWriter fileWriter = null;
-
-        try {
-            fileWriter = new BufferedWriter(new FileWriter("credentials.txt", true));
-            fileWriter.write(username + " " + password);
-            fileWriter.newLine();
-            fileWriter.close();
-
-            data.put(username, new User(username, password));
-        } catch (Exception e) {
-            System.out.println("Credential File Does Not Exist!");
-            e.printStackTrace();
-        }
-    }
-
-    public User getUser(String username) {
-        return data.get(username);
-    }
-
-    public void updateUser(User user) {
-        data.put(user.getUsername(), user);
-    }
-
-    public ClientThread getClientServer(String target) {
-        for (ClientThread client : clients) {
-            if (client.getUser().getUsername().equals(target)) {
-                return client;
+            } catch (Exception e) {
+                System.out.println("Credential File Does Not Exist!");
+                e.printStackTrace();
             }
         }
-        return null;
-    }
 
-    public void broadcast(String type, Message message) throws Exception {
-        String sender = message.getSender();
+        public User getUser(String username) {
+            return data.get(username);
+        }
 
-        System.out.println("Broadcasting a message to all online users.");
+        public void updateUser(User user) {
+            data.put(user.getUsername(), user);
+        }
 
-        for (ClientThread client : clients) {
-            User user = client.getUser();
-            if (user != null && (!user.getUsername().equals(sender))) {
-                if (type.equals("presence")) {
-                    message.setMessage("SERVER");
-                    client.receiveBroadcast(message);
-                } else {
+        public ClientThread getClientServer(String target) {
+            for (ClientThread client : clients) {
+                if (client.getUser().getUsername().equals(target)) {
+                    return client;
+                }
+            }
+            return null;
+        }
+
+    /* ┌────────────────────────────────────────────────────────────────┐ */
+    /* │                            Broadcasts                          │ */
+    /* └────────────────────────────────────────────────────────────────┘ */
+
+        public void broadcast(String type, Message message) throws Exception {
+            String sender = message.getSender();
+
+            System.out.println("Broadcasting a message to all online users.");
+
+            for (ClientThread client : clients) {
+                User user = client.getUser();
+                if (user != null && (!user.getUsername().equals(sender))) {
                     if (!user.isUserBlacklisted(sender)) {
+                        if (type.equals("presence")) {
+                            message.setSender("SERVER");
+                        }
                         client.receiveBroadcast(message);
                     }
                 }
             }
         }
-    }
+
+    /* ┌────────────────────────────────────────────────────────────────┐ */
+    /* │                         List of Online Users                   │ */
+    /* └────────────────────────────────────────────────────────────────┘ */
+
+        public Message listAllOnlineUsers(String requester) {
+            Message message = new Message("SERVER", "whoelse");
+            String messageBody = "";
+
+            for (ClientThread client: clients) {
+                User user = client.getUser();
+                if (user != null && (!user.getUsername().equals(requester))) {
+                    String username = user.getUsername();
+                    if (!user.isUserBlacklisted(requester)) {
+                        messageBody += ("\n" + "   " + username);
+                    }
+                }
+            }
+            message.setMessage(messageBody);
+            return message;
+        }
+
+    /* ┌────────────────────────────────────────────────────────────────┐ */
+    /* │                         Online History                         │ */
+    /* └────────────────────────────────────────────────────────────────┘ */
+
+        public Message getUsersSince(String requester, LocalDateTime dateTime) {
+            Message message = new Message("SERVER", "whoelsesince");
+            String messageBody = "";
+
+            for (User user : data.values()) {
+                boolean isBlocked = user.isUserBlacklisted(requester);
+                String username = user.getUsername();
+                if (!isBlocked && (!username.equals(requester))) {
+                    if (dateTime.compareTo(START_TIME) <= 0) {
+                        messageBody += ("\n" + "   " + username);
+                    } else {
+                        if (user.getLastLogin().compareTo(dateTime) >= 0) {
+                            messageBody += ("\n" + "   " + username);
+                        }
+                    }
+                }
+            }
+            message.setMessage(messageBody);
+            return message;
+        }
 
     public static void main(String[] args) throws IOException {
         if (args.length != 3) {

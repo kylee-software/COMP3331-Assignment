@@ -9,6 +9,7 @@ public class User {
     private int loginAttempts;
     private LocalDateTime blockedTime;
     private LocalDateTime lastLogin;
+    private LocalDateTime lastLogout;
     private ArrayList<String> blacklist;
     private ArrayList<Message> messages;
 
@@ -91,5 +92,17 @@ public class User {
 
     public ArrayList<Message> getMessages() {
         return messages;
+    }
+
+    public void setLastLogin(LocalDateTime lastLogin) {
+        this.lastLogin = lastLogin;
+    }
+
+    public LocalDateTime getLastLogin() {
+        return lastLogin;
+    }
+
+    public void setLastLogout(LocalDateTime lastLogout) {
+        this.lastLogout = lastLogout;
     }
 }

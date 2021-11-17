@@ -45,34 +45,33 @@ public class ClientThread extends Thread {
                 Message inputMessage = (Message) objectInputStream.readObject();
                 String type = inputMessage.getType();
                 String[] messageBody = inputMessage.getMessage().split(" ");
-                String toSend = null;
 
                 switch (type) {
                     case "login" -> {
                         // get username and password from client
                         String username = messageBody[0];
                         String password = messageBody[1];
-                        toSend = login(username, password);
+                        String status = login(username, password);
 
                         Message outputMessage = new Message("SERVER", "login");
-                        outputMessage.setMessage(username + " " + toSend);
+                        outputMessage.setMessage(username + " " + status);
                         objectOutputStream.writeObject(outputMessage);
                         objectOutputStream.flush();
 
-                        if (toSend.equals("SUCCESS")) {
+                        if (status.equals("SUCCESS")) {
                             sendPresenceBroadcast("ONLINE");
                         }
                     }
                     case "register" -> {
                         String username = messageBody[0];
                         String password = messageBody[1];
-                        toSend = register(username, password);
+                        String status = register(username, password);
                         Message outputMessage = new Message("SERVER", "login");
-                        outputMessage.setMessage(username + " " + toSend);
+                        outputMessage.setMessage(username + " " + status);
                         objectOutputStream.writeObject(outputMessage);
                         objectOutputStream.flush();
 
-                        if (toSend.equals("SUCCESS")) {
+                        if (status.equals("SUCCESS")) {
                             sendPresenceBroadcast("ONLINE");
                         }
 
@@ -90,22 +89,44 @@ public class ClientThread extends Thread {
                         server.broadcast("message", broadcastMsg);
                     }
                     case "whoelse" -> {
-                        break;
+                        Message outputMessage = server.listAllOnlineUsers(user.getUsername());
+                        objectOutputStream.writeObject(outputMessage);
+                        objectOutputStream.flush();
                     }
                     case "whoelsesince" -> {
-                        break;
+                        LocalDateTime dateTime = (LocalDateTime.now()).minusSeconds(Long.parseLong(messageBody[0]));
+                        Message outputMessage = server.getUsersSince(user.getUsername(), dateTime);
+                        objectOutputStream.writeObject(outputMessage);
+                        objectOutputStream.flush();
                     }
                     case "block" -> {
-                        break;
+                        String status = blockUser(messageBody[0]);
+                        Message outputMessage = new Message("SERVER", "block");
+                        outputMessage.setMessage(status);
+                        objectOutputStream.writeObject(outputMessage);
+                        objectOutputStream.flush();
                     }
                     case "unblock" -> {
-                        break;
+                        String status = unblockUser(messageBody[0]);
+                        Message outputMessage = new Message("SERVER", "unblock");
+                        outputMessage.setMessage(status);
+                        objectOutputStream.writeObject(outputMessage);
+                        objectOutputStream.flush();
                     }
                     case "logout" -> {
                         user.setLoginStatus("OFFLINE");
                         server.updateUser(user);
                         sendPresenceBroadcast("OFFLINE");
                         user = null;
+                    }
+                    case "exit" -> {
+                        Message outputMessage = new Message("SERVER", "exit");
+                        outputMessage.setMessage("N/A");
+                        objectOutputStream.writeObject(outputMessage);
+                        objectOutputStream.flush();
+
+                        System.out.println("===== the user disconnected, user - " + clientID);
+                        clientAlive = false;
                     }
                 }
             } catch (EOFException e) {
@@ -121,49 +142,52 @@ public class ClientThread extends Thread {
     /* │                        User Authentication                     │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-    private String login(String username, String password) throws Exception {
-        User loginUser = server.getUser(username);
-        if (loginUser == null){
-            // check valid username
-            return "USERNAME";
-        } else if (loginUser.isBlocked(server.blockDuration)) {
-            // check if the system blocked the user or not
-            return "BLOCKED";
-        } else if (loginUser.getLoginStatus().equals("ONLINE")) {
-            return "ONLINE";
-        } else if (loginUser.isCorrectPassword(password)) {
-            loginUser.resetAttempts();
-            loginUser.setLoginStatus("ONLINE");
-            server.updateUser(loginUser);
-            user = loginUser;
-            return "SUCCESS";
-        } else {
-            if (loginUser.getLoginAttempts() == 3) {
-                loginUser.setLoginStatus("BLOCKED");
-                loginUser.setBlockedTime(LocalDateTime.now());
-                server.updateUser(loginUser);
+        private String login(String username, String password) throws Exception {
+            User loginUser = server.getUser(username);
+            if (loginUser == null){
+                // check valid username
+                return "USERNAME";
+            } else if (loginUser.isBlocked(server.BLOCK_DURATION)) {
+                // check if the system blocked the user or not
                 return "BLOCKED";
+            } else if (loginUser.getLoginStatus().equals("ONLINE")) {
+                return "ONLINE";
+            } else if (loginUser.isCorrectPassword(password)) {
+                loginUser.resetAttempts();
+                loginUser.setLoginStatus("ONLINE");
+                loginUser.setLastLogin(LocalDateTime.now());
+                server.updateUser(loginUser);
+                user = loginUser;
+                return "SUCCESS";
+            } else {
+                if (loginUser.getLoginAttempts() == 3) {
+                    loginUser.setLoginStatus("BLOCKED");
+                    loginUser.setBlockedTime(LocalDateTime.now());
+                    server.updateUser(loginUser);
+                    return "BLOCKED";
+                }
+                return "PASSWORD";
             }
-            return "PASSWORD";
         }
-    }
 
-    private String register(String username, String password) throws Exception {
-        if (server.getUser(username) != null) {
-            return "USERNAME";
-        } else {
-            server.addUser(username, password);
-            user = server.getUser(username);
-            return "SUCCESS";
+        private String register(String username, String password) throws Exception {
+            if (server.getUser(username) != null) {
+                return "USERNAME";
+            } else {
+                server.addUser(username, password);
+                user = server.getUser(username);
+                user.setLastLogin(LocalDateTime.now());
+                server.updateUser(user);
+                return "SUCCESS";
+            }
         }
-    }
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                              Timeout                           │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
-    /* │                        Presence Broadcasts                     │ */
+    /* │                            Broadcasts                          │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
         public void receiveBroadcast(Message message) throws Exception {
@@ -171,35 +195,31 @@ public class ClientThread extends Thread {
             objectOutputStream.flush();
         }
 
-        public void sendPresenceBroadcast(String type) throws Exception {
+        private void sendPresenceBroadcast(String type) throws Exception {
             String username = user.getUsername();
             Message broadcastMsg = new Message(username, "broadcast");
             broadcastMsg.setMessage(username + " is " + type);
             server.broadcast("presence", broadcastMsg);
         }
-    /* ┌────────────────────────────────────────────────────────────────┐ */
-    /* │                      List of Online User                       │ */
-    /* └────────────────────────────────────────────────────────────────┘ */
-
-    /* ┌────────────────────────────────────────────────────────────────┐ */
-    /* │                         Online History                         │ */
-    /* └────────────────────────────────────────────────────────────────┘ */
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                          Message Forwarding                    │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-        public void sendMessage(Message message) throws Exception {
+        private void sendMessage(Message message) throws Exception {
             String sender = message.getSender();
             String target = message.getReceiver();
-            User user = server.getUser(target);
+            User targetUser = server.getUser(target);
             Message sendClient = new Message(sender, "message");
 
-            if (user == null) {
+            if (sender.equals(target)) {
+                sendClient.setMessage("SELF");
+            }else if (targetUser == null) {
                 sendClient.setMessage("USERNAME");
-            }else if (user.isUserBlacklisted(sender)) {
+            }else if (targetUser.isUserBlacklisted(sender)) {
                 sendClient.setMessage("BLOCKED" + " " + target);
-            } else if (!user.getLoginStatus().equals("ONLINE")) {
+            } else if (!targetUser.getLoginStatus().equals("ONLINE")) {
+                targetUser.addOfflineMessage(message);
                 sendClient.setMessage("OFFLINE" + " " + target);
             } else {
                 ClientThread targetServer = server.getClientServer(target);
@@ -214,11 +234,38 @@ public class ClientThread extends Thread {
     /* │                           Offline Messaging                    │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-    /* ┌────────────────────────────────────────────────────────────────┐ */
-    /* │                         Message Broadcast                      │ */
-    /* └────────────────────────────────────────────────────────────────┘ */
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                           Blacklisting                         │ */
     /* └────────────────────────────────────────────────────────────────┘ */
+
+        private String blockUser(String username) {
+            User target = server.getUser(username);
+
+            if (user.getUsername().equals(username)) {
+                return "SELF";
+            } else if (target == null) {
+                return "USERNAME";
+            } else {
+                user.addBlacklistUser(username);
+                server.updateUser(user);
+                return "SUCCESS" + " " + username;
+            }
+        }
+
+        private String unblockUser(String username) {
+            User target = server.getUser(username);
+
+            if (user.getUsername().equals(username)) {
+                return "SELF";
+            } else if (target == null) {
+                return "USERNAME";
+            } else if (!user.isUserBlacklisted(username)) {
+                return "UNBLOCKED" + " " + username;
+            } else {
+                user.removeBlacklistUser(username);
+                server.updateUser(user);
+                return "SUCCESS" + " " + username;
+            }
+        }
 }

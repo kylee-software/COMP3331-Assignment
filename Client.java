@@ -8,12 +8,10 @@
  * */
 
 import java.net.*;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class Client {
     private boolean isLoggedIn = false;
     private String user = null;
-    private ReentrantLock synLock = new ReentrantLock();
 
     public void setLoginStatus(boolean isLoggedIn) {
         this.isLoggedIn = isLoggedIn;
@@ -29,14 +27,6 @@ public class Client {
 
     public String getUser() {
         return this.user;
-    }
-
-    public void lock() {
-        synLock.lock();
-    }
-
-    public void unlock() {
-        synLock.unlock();
     }
 
     public static void main(String[] args) throws Exception {
