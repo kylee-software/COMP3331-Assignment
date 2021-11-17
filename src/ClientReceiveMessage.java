@@ -2,12 +2,12 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.net.Socket;
 
-public class ReceiveMessage extends Thread {
+public class ClientReceiveMessage extends Thread {
     private Client client;
     private Socket clientSocket;
     private ObjectInputStream inputStream;
 
-    ReceiveMessage (Client client, Socket clientSocket) throws IOException {
+    ClientReceiveMessage(Client client, Socket clientSocket) throws IOException {
         this.client = client;
         this.clientSocket = clientSocket;
         // define ObjectOutputStream instance which would be used to send message to the server
@@ -48,9 +48,13 @@ public class ReceiveMessage extends Thread {
     private void login(String loginStatus, String username) throws Exception {
         switch (loginStatus) {
             case "USERNAME" -> System.out.println("Username is invalid! Please try again or register a new account!");
-            case "BLOCKED" -> System.out.println(
-                    "Your account is blocked die to multiple failed login attempts! Please try again " +
-                    "later!");
+            case "BLOCKED" -> {
+                System.out.println(
+                        "Your account is blocked die to multiple failed login attempts! Please try again " +
+                        "later!");
+                client.setLoginStatus(false);
+                client.setUser(null);
+            }
             case "ONLINE" -> System.out.println(
                     "This account is already logged in somewhere else. Please try another account!");
             case "SUCCESS" -> {

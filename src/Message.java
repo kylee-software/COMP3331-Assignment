@@ -6,12 +6,9 @@ public class Message implements Serializable {
     private String type;
     private String message;
 
-    Message(String type) {
-        this.type = type;
-    }
-
-    public void setSender(String sender) {
+    Message(String sender, String type) {
         this.sender = sender;
+        this.type = type;
     }
 
     public String getSender() {

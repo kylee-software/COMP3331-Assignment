@@ -8,7 +8,6 @@
  * */
 
 import java.net.*;
-import java.io.*;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Client {
@@ -56,11 +55,11 @@ public class Client {
         Socket clientSocket = new Socket(serverHost, serverPort);
 
         // function for sending messages to the server
-        SendMessage sendMessageThread = new SendMessage(client, clientSocket);
+        ClientSendMessage clientSendMessageThread = new ClientSendMessage(client, clientSocket);
         // function for receiving messages from the server
-        ReceiveMessage receiveMessageThread = new ReceiveMessage(client, clientSocket);
+        ClientReceiveMessage clientReceiveMessageThread = new ClientReceiveMessage(client, clientSocket);
 
-        sendMessageThread.start();
-        receiveMessageThread.start();
+        clientSendMessageThread.start();
+        clientReceiveMessageThread.start();
     }
 }

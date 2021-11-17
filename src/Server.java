@@ -31,7 +31,7 @@ public class Server {
     }
 
     // turn data into Hashmaps and return it
-    public HashMap<String, User> getData() {
+    private static void generateData() {
         File file = new File("src/credentials.txt");
         BufferedReader fileReader = null;
         // Getting user login information from the credential file
@@ -50,12 +50,10 @@ public class Server {
             System.out.println("Credential File Does Not Exist!");
             e.printStackTrace();
         }
-
-        return data;
     }
 
     // Save all the changes to a user's information
-    public void saveData(String username, String password) {
+    public void addUser(String username, String password) {
         BufferedWriter fileWriter = null;
 
         try {
@@ -71,21 +69,36 @@ public class Server {
         }
     }
 
-    public void broadcast (String sender, String type) throws Exception {
-        synLock.lock();
-        System.out.println("Broadcasting a message.");
+    public User getUser(String username) {
+        return data.get(username);
+    }
+
+    public void updateUser(User user) {
+        data.put(user.getUsername(), user);
+    }
+
+    public ClientThread getClientServer(String target) {
+        for (ClientThread client : clients) {
+            if (client.getUser().getUsername().equals(target)) {
+                return client;
+            }
+        }
+        return null;
+    }
+
+    public void broadcast(Message message) throws Exception {
+        String sender = message.getSender();
+
+        System.out.println("Broadcasting a message to all online users.");
+
         for (ClientThread client : clients) {
             User user = client.getUser();
             if (user != null && (!user.getUsername().equals(sender))) {
-                if (type.equals("ONLINE")) {
-                    client.broadcast(user.getUsername() + " " + "is online.");
-                } else {
-                    client.broadcast(user.getUsername() + " " + "is offline.");
+                if (!user.isUserBlacklisted(sender)) {
+                    client.receiveBroadcast(message);
                 }
             }
         }
-
-        synLock.unlock();
     }
 
     public static void main(String[] args) throws IOException {
@@ -103,6 +116,10 @@ public class Server {
 
         // define server socket with the input port number, by default the host would be localhost i.e., 127.0.0.1
         serverSocket = new ServerSocket(serverPort);
+
+        // get login credential data from txt file and parse it into hashmaps;
+        generateData();
+
         // make serverSocket listen connection request from clients
         System.out.println("===== Server is running =====");
         System.out.println("===== Waiting for connection request from clients...=====");

@@ -4,7 +4,7 @@ import java.io.InputStreamReader;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
-public class SendMessage extends Thread {
+public class ClientSendMessage extends Thread {
     private Client client;
     private Socket clientSocket;
     private final ObjectOutputStream outputStream;
@@ -12,7 +12,7 @@ public class SendMessage extends Thread {
     private boolean isLoggedIn;
     private String user;
 
-    SendMessage (Client client, Socket clientSocket) throws IOException {
+    ClientSendMessage(Client client, Socket clientSocket) throws IOException {
         this.client = client;
         this.clientSocket = clientSocket;
         // define ObjectInputStream instance which would be used to receive response from the server
@@ -28,13 +28,14 @@ public class SendMessage extends Thread {
 
         while (true) {
             try {
+                Thread.sleep(1000);
                 isLoggedIn = client.isLoggedIn();
                 user = client.getUser();
 
                 if (!isLoggedIn) {
                     if (user == null) {
                         System.out.println("============= Welcome to the Greatest Messaging System! =============");
-                        System.out.println("Would you like to log in or register?");
+                        System.out.println("Action: login or register?");
 
                         String choice = reader.readLine();
 
@@ -111,7 +112,7 @@ public class SendMessage extends Thread {
     }
 
     private void sendMessage(String type, String message) throws Exception {
-        Message toSend = new Message(type);
+        Message toSend = new Message(null, type);
         toSend.setMessage(message);
         outputStream.writeObject(toSend);
         outputStream.flush();
@@ -119,8 +120,8 @@ public class SendMessage extends Thread {
 
     private void logout() throws Exception {
         client.setLoginStatus(false);
-        outputStream.writeObject("logout" + " " + user);
-        outputStream.flush();
+        client.setUser(null);
+        sendMessage("logout", "offline");
         user = null;
     }
 }

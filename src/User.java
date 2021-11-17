@@ -50,6 +50,10 @@ public class User {
         return false;
     }
 
+    public void setBlockedTime(LocalDateTime blockedTime) {
+        this.blockedTime = blockedTime;
+    }
+
     public void addBlacklistUser(String username) {
         blacklist.add(username);
     }
