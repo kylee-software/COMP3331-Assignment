@@ -1,12 +1,15 @@
 import java.io.Serializable;
 
-public class Message implements Serializable {
+/**
+ * A packet that carry information to send message to the server and from server to client
+ */
+public class Packet implements Serializable {
     private String sender;
     private String receiver;
     private String type;
     private String message;
 
-    Message(String sender, String type) {
+    Packet(String sender, String type) {
         this.sender = sender;
         this.type = type;
     }

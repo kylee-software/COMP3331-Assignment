@@ -9,28 +9,21 @@ public class User {
     private int loginAttempts;
     private LocalDateTime blockedTime;
     private LocalDateTime lastLogin;
-    private LocalDateTime lastLogout;
     private ArrayList<String> blacklist;
-    private ArrayList<Message> messages;
+    private ArrayList<Packet> packets;
 
     User(String username, String password) {
         this.username = username;
         this.password = password;
         this.loginStatus = "ONLINE";
         blacklist = new ArrayList<>();
-        messages = new ArrayList<>();
+        packets = new ArrayList<>();
     }
 
     public String getUsername() {
         return this.username;
     }
-    public void setPassword(String newPass) {
-        this.password = newPass;
-    }
 
-    public String getPassword() {
-        return password;
-    }
 
     public String getLoginStatus() {
         return loginStatus;
@@ -40,6 +33,11 @@ public class User {
         this.loginStatus = loginStatus;
     }
 
+    /**
+     * determines whether a user is still being blocked by the server from logging in
+     * @param blockDuration the block duration of the server for three failed-login attempts
+     * @return return true if user is still being blocked else false;
+     */
     public boolean isBlocked(long blockDuration) {
         if (loginStatus.equals("BLOCKED")){
             long diff = blockedTime.until(LocalDateTime.now(), ChronoUnit.SECONDS);
@@ -82,16 +80,23 @@ public class User {
         return blacklist.contains(username);
     }
 
-    public void addOfflineMessage(Message message) {
-        messages.add(message);
+    /**
+     * add a message to user's to-read list when another user tried to send the user a message but the user is offline
+     * @param packet the message to be read by the user later
+     */
+    public void addOfflineMessage(Packet packet) {
+        packets.add(packet);
     }
 
+    /**
+     * reset messages after user is logged in and read them
+     */
     public void resetMessages() {
-        messages.clear();
+        packets.clear();
     }
 
-    public ArrayList<Message> getMessages() {
-        return messages;
+    public ArrayList<Packet> getMessages() {
+        return packets;
     }
 
     public void setLastLogin(LocalDateTime lastLogin) {
@@ -100,9 +105,5 @@ public class User {
 
     public LocalDateTime getLastLogin() {
         return lastLogin;
-    }
-
-    public void setLastLogout(LocalDateTime lastLogout) {
-        this.lastLogout = lastLogout;
     }
 }

@@ -12,6 +12,10 @@ public class ClientSendMessage extends Thread {
     private boolean isLoggedIn;
     private String user;
 
+    // coloring text
+    final String ANSI_RESET = "\u001B[0m";
+    final String ANSI_RED = "\u001B[31m";
+
     ClientSendMessage(Client client, Socket clientSocket) throws IOException {
         this.client = client;
         this.clientSocket = clientSocket;
@@ -22,20 +26,23 @@ public class ClientSendMessage extends Thread {
         this.reader = new BufferedReader(new InputStreamReader(System.in));
     }
 
+    /**
+     * Main function that deals with handling the responses from the console to the server
+     */
     @Override
     public void run() {
         super.run();
 
         while (true) {
             try {
+                Thread.sleep(100);
                 isLoggedIn = client.isLoggedIn();
                 user = client.getUser();
 
                 if (!isLoggedIn) {
-                    Thread.sleep(1000);
                     if (user == null) {
                         System.out.println("============= Welcome to the Greatest Messaging System! =============");
-                        System.out.println("Action: login or register?");
+                        System.out.println(ANSI_RED + "Action!" + ANSI_RESET + " login or register: ");
 
                         String choice = reader.readLine();
 
@@ -55,7 +62,7 @@ public class ClientSendMessage extends Thread {
                                 System.out.println("============= Register =============");
 
                                 // get user username
-                                System.out.println("Username:");
+                                System.out.println("Username: ");
                                 String username = reader.readLine();
                                 // get new password
                                 System.out.println("Password: ");
@@ -64,7 +71,8 @@ public class ClientSendMessage extends Thread {
                                 sendMessage("register", username + " " + password);
                             }
                             default -> {
-                                System.out.println("Error: Invalid Command!");
+                                // prevent user from using other commands before logged in
+                                System.out.println(ANSI_RED + "Error" + ANSI_RESET + ": Invalid Command!");
                             }
                         }
                     } else {
@@ -73,6 +81,7 @@ public class ClientSendMessage extends Thread {
                         sendMessage("login", user + " " + password);
                     }
                 } else {
+                    // allow users to use excluded features after they logged in
                     String[] command = reader.readLine().split(" ");
 
                     switch (command[0]) {
@@ -114,13 +123,23 @@ public class ClientSendMessage extends Thread {
         }
     }
 
+    /**
+     * send a message to the server in order to handle the inputs from the console
+     * @param type represents the command user entered
+     * @param message message body of the packet
+     * @throws Exception throw exception when error occur
+     */
     private void sendMessage(String type, String message) throws Exception {
-        Message toSend = new Message(null, type);
+        Packet toSend = new Packet(null, type);
         toSend.setMessage(message);
         outputStream.writeObject(toSend);
         outputStream.flush();
     }
 
+    /**
+     * reset login status when a user logout
+     * @throws Exception throw exception when error occur
+     */
     private void logout() throws Exception {
         client.setLoginStatus(false);
         client.setUser(null);

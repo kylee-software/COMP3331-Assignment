@@ -95,19 +95,25 @@ public class Server {
     /* │                            Broadcasts                          │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-        public void broadcast(String type, Message message) throws Exception {
-            String sender = message.getSender();
-
-            System.out.println("Broadcasting a message to all online users.");
+        /**
+         * broadcast messages to all online users excluding the sender and users that blocked the sender
+         * @param type "presence" or "message"
+                *  presence: to notify users whenever a user logged in and logged out
+                *  message: sender being one of the users trying to send a broadcast message to all online users
+         * @param packet the packet that contains the information about the message
+         * @throws Exception throw exception when an error occurs
+         */
+        public void broadcast(String type, Packet packet) throws Exception {
+            String sender = packet.getSender();
 
             for (ClientThread client : clients) {
                 User user = client.getUser();
                 if (user != null && (!user.getUsername().equals(sender))) {
                     if (!user.isUserBlacklisted(sender)) {
                         if (type.equals("presence")) {
-                            message.setSender("SERVER");
+                            packet.setSender("SERVER");
                         }
-                        client.receiveBroadcast(message);
+                        client.receiveBroadcast(packet);
                     }
                 }
             }
@@ -117,29 +123,42 @@ public class Server {
     /* │                         List of Online Users                   │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-        public Message listAllOnlineUsers(String requester) {
-            Message message = new Message("SERVER", "whoelse");
-            String messageBody = "";
+        /**
+         * list of all online users upon a request of a user
+         * @param requester the user who is requesting the command "whoelse"
+         * @return a packet contains the list of all online user excluding the requester and all users who blocked
+         * the requester
+         */
+        public Packet listAllOnlineUsers(String requester) {
+                Packet packet = new Packet("SERVER", "whoelse");
+                String messageBody = "";
 
-            for (ClientThread client: clients) {
-                User user = client.getUser();
-                if (user != null && (!user.getUsername().equals(requester))) {
-                    String username = user.getUsername();
-                    if (!user.isUserBlacklisted(requester)) {
-                        messageBody += ("\n" + "   " + username);
+                for (ClientThread client: clients) {
+                    User user = client.getUser();
+                    if (user != null && (!user.getUsername().equals(requester))) {
+                        String username = user.getUsername();
+                        if (!user.isUserBlacklisted(requester)) {
+                            messageBody += ("\n" + "   " + username);
+                        }
                     }
                 }
+                packet.setMessage(messageBody);
+                return packet;
             }
-            message.setMessage(messageBody);
-            return message;
-        }
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                         Online History                         │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
-        public Message getUsersSince(String requester, LocalDateTime dateTime) {
-            Message message = new Message("SERVER", "whoelsesince");
+        /**
+         * get a list of users that were online since the requested date time
+         * @param requester the requester who is requesting the command "whoelsesince"
+         * @param dateTime the date time that is being considered
+         * @return a packet contains a list of users that were online since the requested date time excluding the
+         * requester and all the users who blocked the requester
+         */
+        public Packet getUsersSince(String requester, LocalDateTime dateTime) {
+            Packet packet = new Packet("SERVER", "whoelsesince");
             String messageBody = "";
 
             for (User user : data.values()) {
@@ -155,8 +174,8 @@ public class Server {
                     }
                 }
             }
-            message.setMessage(messageBody);
-            return message;
+            packet.setMessage(messageBody);
+            return packet;
         }
 
     public static void main(String[] args) throws IOException {
