@@ -15,7 +15,7 @@ public class User {
     User(String username, String password) {
         this.username = username;
         this.password = password;
-        this.loginStatus = "ONLINE";
+        this.loginStatus = "OFFLINE";
         blacklist = new ArrayList<>();
         packets = new ArrayList<>();
     }

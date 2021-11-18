@@ -1,8 +1,10 @@
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.EOFException;
 import java.net.Socket;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 
 public class ClientThread extends Thread {
     private final Server server;
@@ -12,6 +14,10 @@ public class ClientThread extends Thread {
     private ObjectOutputStream objectOutputStream;
     // used to acquire input from client
     private ObjectInputStream objectInputStream;
+
+    // Text coloring for text
+    final String ANSI_RESET = "\u001B[0m";
+    final String ANSI_USER = "\u001B[35m" + "\u001B[1m";
 
     ClientThread(Server server, Socket clientSocket) {
         this.server = server;
@@ -81,12 +87,12 @@ public class ClientThread extends Thread {
                         if (status.equals("SUCCESS")) {
                             sendPresenceBroadcast("online");
                         }
-
                     }
                     case "message" -> {
                         Packet newPacket = new Packet(user.getUsername(), "broadcast");
                         newPacket.setReceiver(messageBody[0]);
-                        newPacket.setMessage(messageBody[1]);
+                        String messageText = String.join(" ", Arrays.copyOfRange(messageBody, 1, messageBody.length));
+                        newPacket.setMessage(messageText);
                         sendMessage(newPacket);
                     }
                     case "broadcast" -> {
@@ -135,12 +141,15 @@ public class ClientThread extends Thread {
                         System.out.println("===== the user disconnected, user - " + clientID);
                         clientAlive = false;
                     }
+                    case "messages" -> {
+                        Packet outputPacket = offlineMessages();
+                        objectOutputStream.writeObject(outputPacket);
+                        objectOutputStream.flush();
+                    }
                 }
-            } catch (EOFException e) {
+            } catch (Exception e) {
                 System.out.println("===== the user disconnected, user - " + clientID);
                 clientAlive = false;
-            } catch (Exception e) {
-                e.printStackTrace();
             }
         }
     }
@@ -197,6 +206,7 @@ public class ClientThread extends Thread {
             } else {
                 server.addUser(username, password);
                 user = server.getUser(username);
+                user.setLoginStatus("ONLINE");
                 user.setLastLogin(LocalDateTime.now());
                 server.updateUser(user);
                 return "SUCCESS";
@@ -254,6 +264,8 @@ public class ClientThread extends Thread {
                     sendClient.setMessage("USERNAME");
                 }else if (targetUser.isUserBlacklisted(sender)) {
                     sendClient.setMessage("BLOCKED" + " " + target);
+                } else if (packet.getMessage().equals("")) {
+                    sendClient.setMessage("EMPTY");
                 } else if (!targetUser.getLoginStatus().equals("ONLINE")) {
                     targetUser.addOfflineMessage(packet);
                     sendClient.setMessage("OFFLINE" + " " + target);
@@ -270,7 +282,31 @@ public class ClientThread extends Thread {
     /* │                           Offline Messaging                    │ */
     /* └────────────────────────────────────────────────────────────────┘ */
 
+        /**
+         * get all the offline messages for a user that just logged in
+         * @return the packet that contains the information of this request
+                *  if the user has unread messages, then a list of unread messages is included in the message body
+                *  else "NONE" will be in the message body indicates that no unread message
+         */
+        private Packet offlineMessages() {
+            Packet outputPacket = new Packet("SERVER", "messages");
+            Packet[] messages = user.getMessages().toArray(new Packet[0]);
 
+            String messageBody = "";
+            if (messages.length != 0) {
+                messageBody += "you have " + String.valueOf(messages.length) + " unread messages.";
+
+                for (Packet message: messages) {
+                    String sender = message.getSender();
+                    String senderMsg = message.getMessage();
+                    messageBody += ("\n" + "   " + ANSI_USER + sender + ANSI_RESET + ": " + senderMsg);
+                }
+            } else {
+                messageBody  = "NONE";
+            }
+            outputPacket.setMessage(messageBody);
+            return outputPacket;
+        }
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                           Blacklisting                         │ */
     /* └────────────────────────────────────────────────────────────────┘ */

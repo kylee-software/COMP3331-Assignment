@@ -9,8 +9,9 @@ public class ClientReceiveMessage extends Thread {
 
     // Text coloring for text
     final String ANSI_RESET = "\u001B[0m";
-    final String ANSI_SERVER = "\u001B[34m";
-    final String ANSI_USER = "\u001B[35m" + "\u001B[1m";
+    final String ANSI_BOLD = "\u001B[1m";
+    final String ANSI_SERVER = "\u001B[34m" + ANSI_BOLD;
+    final String ANSI_USER = "\u001B[35m" + ANSI_BOLD;
     final String ANSI_RED = "\u001B[31m";
     final String ANSI_USER_MENTION = ANSI_RED + "\u001B[4m";
 
@@ -72,6 +73,18 @@ public class ClientReceiveMessage extends Thread {
                         System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": Good Bye!");
                         inputStream.close();
                     }
+                    case "messages" -> {
+                        if (messageBody[0].equals("NONE")) {
+                            System.out.println(ANSI_SERVER + sender + ANSI_RESET + ": you have no unread messages.");
+                        } else {
+                            System.out.println(ANSI_SERVER + sender + ANSI_RESET + ": " + String.join(" ", messageBody));
+                        }
+
+                        System.out.println("-----------------------------------\n");
+                    }
+                    case "error" -> {
+
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -92,12 +105,12 @@ public class ClientReceiveMessage extends Thread {
             case "USERNAME" -> {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": username is invalid! " +
                                    "Please" + " try again or register a new account!");
-                System.out.println("-----------------------------------\n");
+                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
             }
             case "BLOCKED" -> {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": your account is blocked die to multiple " +
                                    "failed login attempts! Please try again later!");
-                System.out.println("-----------------------------------\n");
+                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
                 client.setLoginStatus(false);
                 client.setUser(null);
             }
@@ -105,7 +118,7 @@ public class ClientReceiveMessage extends Thread {
                 System.out.println(
                         ANSI_SERVER + "SERVER" + ANSI_RESET + ": this account is already logged in somewhere else. Please" +
                         " " + "try another account!");
-                System.out.println("-----------------------------------\n");
+                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
             }
             case "SUCCESS" -> {
                 client.setLoginStatus(true);
@@ -113,11 +126,11 @@ public class ClientReceiveMessage extends Thread {
                 System.out.println(
                         ANSI_SERVER + "SERVER" + ANSI_RESET + ": welcome " + ANSI_USER_MENTION + username + ANSI_RESET +
                         "! You have logged in successfully!");
-                System.out.println("-----------------------------------\n");
+                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
             }
             case "PASSWORD" -> {
                 client.setUser(username);
-                System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": wrong password! Please re-enter:");
+                System.out.print(ANSI_SERVER + "SERVER" + ANSI_RESET + ": wrong password! Please re-enter: ");
             }
         }
     }
@@ -133,15 +146,14 @@ public class ClientReceiveMessage extends Thread {
         if (loginStatus.equals("USERNAME")) {
             System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": account with this username is already " +
                                "existed! Please try a different username");
-            System.out.println("-----------------------------------\n");
         } else {
             client.setLoginStatus(true);
             client.setUser(username);
             System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET +
                                ": you have successfully created an account! Welcome to the SQUAD " + ANSI_USER_MENTION +
                                username + ANSI_RESET + "!");
-            System.out.println("-----------------------------------\n");
         }
+        System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
     }
 
     /**
@@ -161,6 +173,9 @@ public class ClientReceiveMessage extends Thread {
             case "BLOCKED" -> {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": you do not have the permission to send a " +
                                    "message to " + ANSI_USER_MENTION + response[1] + ANSI_RESET + "!");
+            }
+            case "EMPTY" -> {
+                System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": message can not be empty!");
             }
             case "OFFLINE" -> {
                 System.out.println(

@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.Arrays;
 
 public class ClientSendMessage extends Thread {
     private Client client;
@@ -15,6 +16,7 @@ public class ClientSendMessage extends Thread {
     // coloring text
     final String ANSI_RESET = "\u001B[0m";
     final String ANSI_RED = "\u001B[31m";
+    final String ANSI_BOLD = "\u001B[1m";
 
     ClientSendMessage(Client client, Socket clientSocket) throws IOException {
         this.client = client;
@@ -33,6 +35,7 @@ public class ClientSendMessage extends Thread {
     public void run() {
         super.run();
 
+        boolean loadUnreadMsg = true;
         while (true) {
             try {
                 Thread.sleep(100);
@@ -41,38 +44,41 @@ public class ClientSendMessage extends Thread {
 
                 if (!isLoggedIn) {
                     if (user == null) {
-                        System.out.println("============= Welcome to the Greatest Messaging System! =============");
-                        System.out.println(ANSI_RED + "Action!" + ANSI_RESET + " login or register: ");
+                        System.out.println(ANSI_BOLD + "============= Welcome to the Greatest Messaging System! " +
+                                              "=============" + ANSI_RESET);
+                        System.out.print("login or register: ");
 
                         String choice = reader.readLine();
 
                         switch (choice) {
                             case "login" -> {
-                                System.out.println("============= Login =============");
+                                System.out.println("------------- " + ANSI_BOLD + "Login" + ANSI_RESET + " -------------");
                                 // ask to log in if user hasn't logged in yet
-                                System.out.println("Username:");
+                                System.out.print("Username: ");
                                 String username = reader.readLine();
 
-                                System.out.println("Password:");
+                                System.out.print("Password: ");
                                 String password = reader.readLine();
 
                                 sendMessage("login", username + " " + password);
                             }
                             case "register" -> {
-                                System.out.println("============= Register =============");
-
+                                System.out.println("------------ " + ANSI_BOLD + "Register" + ANSI_RESET + " " +
+                                                   "------------");
                                 // get user username
-                                System.out.println("Username: ");
+                                System.out.print("Username: ");
                                 String username = reader.readLine();
                                 // get new password
-                                System.out.println("Password: ");
+                                System.out.print("Password: ");
                                 String password = reader.readLine();
 
                                 sendMessage("register", username + " " + password);
                             }
                             default -> {
                                 // prevent user from using other commands before logged in
-                                System.out.println(ANSI_RED + "Error" + ANSI_RESET + ": Invalid Command!");
+                                System.out.println(ANSI_RED + ANSI_BOLD + "Error" + ANSI_RESET + ": Invalid Command!");
+                                System.out.println(ANSI_BOLD + "========================================================" +
+                                                   "=============\n" + ANSI_RESET);
                             }
                         }
                     } else {
@@ -81,38 +87,75 @@ public class ClientSendMessage extends Thread {
                         sendMessage("login", user + " " + password);
                     }
                 } else {
+                    if (loadUnreadMsg) {
+                        System.out.println("Checking for unread messages......");
+                        sendMessage("messages", "N/A");
+                        loadUnreadMsg = false;
+                    }
+
                     // allow users to use excluded features after they logged in
                     String[] command = reader.readLine().split(" ");
 
                     switch (command[0]) {
                         case "message" -> {
-                            sendMessage("message", command[1] + " " + command[2]);
+                            try {
+                                String messageBody = String.join(" ", Arrays.copyOfRange(command, 1,
+                                                                                    command.length));
+                                sendMessage("message", messageBody);
+                            } catch (Exception e) {
+                                System.out.println(invalidCommandMsg(command[0]));
+                            }
                         }
                         case "broadcast" -> {
-                            sendMessage("broadcast", command[1]);
+                            try {
+                                String messageBody = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
+                                sendMessage("broadcast", messageBody);
+                            } catch (Exception e) {
+                                System.out.println(invalidCommandMsg(command[0]));
+                            }
                         }
                         case "whoelse" -> {
-                            sendMessage("whoelse","N/A");
+                            sendMessage("whoelse", "N/A");
                         }
                         case "whoelsesince" -> {
-                            sendMessage("whoelsesince", command[1]);
+                            try {
+                                sendMessage("whoelsesince", command[1]);
+                            } catch (Exception e) {
+                                System.out.println(invalidCommandMsg(command[0]));
+                            }
                         }
                         case "block" -> {
-                            sendMessage("block", command[1]);
+                            try {
+                                sendMessage("block", command[1]);
+                            } catch (Exception e) {
+                                System.out.println(invalidCommandMsg(command[0]));
+                            }
                         }
                         case "unblock" -> {
-                            sendMessage("unblock", command[1]);
+                            try {
+                                sendMessage("unblock", command[1]);
+                            } catch (Exception e) {
+                                System.out.println(invalidCommandMsg(command[0]));
+                            }
                         }
                         case "logout" -> {
+                            loadUnreadMsg = true;
                             logout();
                             sendMessage("logout", "N/A");
                         }
                         case "exit" -> {
+                            loadUnreadMsg = true;
                             logout();
                             // send a message to server to close input stream
                             sendMessage("exit", "N/A");
                             clientSocket.close();
                             outputStream.close();
+                        }
+                        default -> {
+                            // prevent user from using invalid commands before logged in
+                            System.out.println(ANSI_RED + ANSI_BOLD + "Error" + ANSI_RESET + ": Invalid Command!");
+                            System.out.println( ANSI_BOLD +
+                                                "----------------------------------------------------------------------\n" + ANSI_RESET);
                         }
                     }
                 }
@@ -125,7 +168,8 @@ public class ClientSendMessage extends Thread {
 
     /**
      * send a message to the server in order to handle the inputs from the console
-     * @param type represents the command user entered
+     *
+     * @param type    represents the command user entered
      * @param message message body of the packet
      * @throws Exception throw exception when error occur
      */
@@ -138,11 +182,38 @@ public class ClientSendMessage extends Thread {
 
     /**
      * reset login status when a user logout
+     *
      * @throws Exception throw exception when error occur
      */
     private void logout() throws Exception {
         client.setLoginStatus(false);
         client.setUser(null);
         user = null;
+    }
+
+    /**
+     * format the error message when user entered uncompleted command
+     *
+     * @param type the type of command
+     * @return the error message
+     */
+    private String invalidCommandMsg(String type) {
+        String toReturn = ANSI_RED + "Error" + ANSI_RESET + ": [correct format] " + type;
+
+        switch (type) {
+            case "message" -> {
+                toReturn += " <user> <message>";
+            }
+            case "broadcast" -> {
+                toReturn += " <message>";
+            }
+            case "whoelsesince" -> {
+                toReturn += " <time in seconds>";
+            }
+            case "block", "unblock" -> {
+                toReturn += " <user>";
+            }
+        }
+        return toReturn;
     }
 }
