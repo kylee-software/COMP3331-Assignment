@@ -15,14 +15,18 @@ public class ClientThread extends Thread {
     private ObjectOutputStream objectOutputStream;
     // used to acquire input from client
     private ObjectInputStream objectInputStream;
+    private P2P p2p;
 
     // Text coloring for text
     final String ANSI_RESET = "\u001B[0m";
     final String ANSI_USER = "\u001B[35m" + "\u001B[1m";
+    final String ANSI_BOLD = "\u001B[1m";
+    final String ANSI_SERVER = "\u001B[34m" + ANSI_BOLD;
 
-    ClientThread(Server server, Socket clientSocket) {
+    ClientThread(Server server, Socket clientSocket, P2P p2p) {
         this.server = server;
         this.clientSocket = clientSocket;
+        this.p2p = p2p;
     }
 
     /**
@@ -134,6 +138,45 @@ public class ClientThread extends Thread {
                         sendPresenceBroadcast("offline");
                         user = null;
                         clientSocket.setSoTimeout(0);
+                    }
+                    case "startprivate" -> {
+                        String target = messageBody[0];
+
+                        if (messageBody[1] == null) {
+                            startPrivateMsg(target);
+                        } else {
+                            // send the response of an invitation back to the requester
+                            Packet targetPacket = new Packet("SERVER", "SERVER");
+                            Packet outputPacket = new Packet("SERVER", "SERVER");
+                            String msg = "";
+                            if (messageBody[1].equals("yes")){
+                                // set up the connection
+                                int port = clientSocket.getPort();
+//                                String socketInfo = target + " " + user.getUsername() + " " + Integer.toString(port);
+
+                                if (p2p.createConnection(target, user.getUsername(), port)) {
+                                    msg = ANSI_SERVER + "SERVER" + ANSI_RESET + ": start private " +
+                                                       "messaging with " + target;
+                                    msg += ANSI_BOLD + "\n================= PRIVATE MESSAGING " +
+                                                       "=================" + ANSI_RESET;
+                                } else {
+                                    msg = ANSI_SERVER + "SERVER" + ANSI_RESET + ": failed to make " +
+                                                       "private connection with " + target;
+                                }
+                                // notify the requester about user's decision
+                                targetPacket.setMessage(msg);
+                                outputPacket.setMessage(msg);
+                                objectOutputStream.writeObject(outputPacket);
+                                objectOutputStream.flush();
+
+                            } else {
+                                msg = ANSI_SERVER + "SERVER" + ANSI_RESET + ": the user declined your invitation!";
+                                targetPacket.setMessage(msg);
+                            }
+                            ClientThread requesterThread = server.getClientServer(target);
+                            requesterThread.receiveBroadcast(targetPacket);
+                        }
+
                     }
                     case "exit" -> {
                         Packet outputPacket = new Packet("SERVER", "exit");
@@ -287,30 +330,64 @@ public class ClientThread extends Thread {
          * to the client
          */
         private void sendMessage(Packet packet) throws IOException {
-                String sender = packet.getSender();
-                String target = packet.getReceiver();
-                User targetUser = server.getUser(target);
-                Packet sendClient = new Packet(sender, "message");
+            String sender = packet.getSender();
+            String target = packet.getReceiver();
+            User targetUser = server.getUser(target);
+            Packet sendClient = new Packet(sender, "message");
 
-                if (sender.equals(target)) {
-                    sendClient.setMessage("SELF");
-                }else if (targetUser == null) {
-                    sendClient.setMessage("USERNAME");
-                }else if (targetUser.isUserBlacklisted(sender)) {
-                    sendClient.setMessage("BLOCKED" + " " + target);
-                } else if (packet.getMessage().equals("")) {
-                    sendClient.setMessage("EMPTY");
-                } else if (!targetUser.getLoginStatus().equals("ONLINE")) {
-                    targetUser.addOfflineMessage(packet);
-                    sendClient.setMessage("OFFLINE" + " " + target);
-                } else {
-                    ClientThread targetServer = server.getClientServer(target);
-                    targetServer.receiveBroadcast(packet);
-                    sendClient.setMessage("SUCCESS" + " " + target);
-                }
-                objectOutputStream.writeObject(sendClient);
-                objectOutputStream.flush();
+            if (sender.equals(target)) {
+                sendClient.setMessage("SELF");
+            }else if (targetUser == null) {
+                sendClient.setMessage("USERNAME");
+            }else if (targetUser.isUserBlacklisted(sender)) {
+                sendClient.setMessage("BLOCKED" + " " + target);
+            } else if (packet.getMessage().equals("")) {
+                sendClient.setMessage("EMPTY");
+            } else if (!targetUser.getLoginStatus().equals("ONLINE")) {
+                targetUser.addOfflineMessage(packet);
+                sendClient.setMessage("OFFLINE" + " " + target);
+            } else {
+                ClientThread targetServer = server.getClientServer(target);
+                targetServer.receiveBroadcast(packet);
+                sendClient.setMessage("SUCCESS" + " " + target);
             }
+            objectOutputStream.writeObject(sendClient);
+            objectOutputStream.flush();
+        }
+
+        private void startPrivateMsg(String target) throws IOException {
+            User targetInfo = server.getUser(target);
+            Packet outputPacket = new Packet(user.getUsername(), "startprivate");
+            String msg = "";
+            if (target.equals(user.getUsername())) {
+                msg = "REQUEST SELF";
+                outputPacket.setMessage(msg);
+                objectOutputStream.writeObject(outputPacket);
+                objectOutputStream.flush();
+            } else if (targetInfo == null) {
+                msg = " REQUEST USERNAME";
+                outputPacket.setMessage(msg);
+                objectOutputStream.writeObject(outputPacket);
+                objectOutputStream.flush();
+            } else if (targetInfo.isUserBlacklisted(user.getUsername())) {
+                msg = "REQUEST BLOCKED";
+                outputPacket.setMessage(msg);
+                objectOutputStream.writeObject(outputPacket);
+                objectOutputStream.flush();
+            } else {
+                msg = "REQUEST SENT";
+                outputPacket.setMessage(msg);
+                objectOutputStream.writeObject(outputPacket);
+                objectOutputStream.flush();
+
+                // send a request to target user to ask for permission
+                ClientThread clientThread = server.getClientServer(target);
+                Packet requestInvite = new Packet(user.getUsername(), "startprivate");
+                requestInvite.setMessage("INVITE " + user.getUsername());
+                clientThread.receiveBroadcast(requestInvite);
+            }
+
+        }
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                           Offline Messaging                    │ */
@@ -343,6 +420,7 @@ public class ClientThread extends Thread {
             outputPacket.setMessage(messageBody);
             return outputPacket;
         }
+
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                           Blacklisting                         │ */
     /* └────────────────────────────────────────────────────────────────┘ */
@@ -373,18 +451,18 @@ public class ClientThread extends Thread {
          * @return the status of the attempted action
          */
         private String unblockUser(String username) {
-                User target = server.getUser(username);
+            User target = server.getUser(username);
 
-                if (user.getUsername().equals(username)) {
-                    return "SELF";
-                } else if (target == null) {
-                    return "USERNAME";
-                } else if (!user.isUserBlacklisted(username)) {
-                    return "UNBLOCKED" + " " + username;
-                } else {
-                    user.removeBlacklistUser(username);
-                    server.updateUser(user);
-                    return "SUCCESS" + " " + username;
-                }
+            if (user.getUsername().equals(username)) {
+                return "SELF";
+            } else if (target == null) {
+                return "USERNAME";
+            } else if (!user.isUserBlacklisted(username)) {
+                return "UNBLOCKED" + " " + username;
+            } else {
+                user.removeBlacklistUser(username);
+                server.updateUser(user);
+                return "SUCCESS" + " " + username;
             }
+        }
 }

@@ -1,11 +1,13 @@
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
 
 public class ClientReceiveMessage extends Thread {
     private Client client;
+    private ObjectOutputStream outputStream;
     private ObjectInputStream inputStream;
     private Socket clientSocket;
 
@@ -83,7 +85,8 @@ public class ClientReceiveMessage extends Thread {
                         if (messageBody[0].equals("NONE")) {
                             System.out.println(ANSI_SERVER + sender + ANSI_RESET + ": you have no unread messages.");
                         } else {
-                            System.out.println(ANSI_SERVER + sender + ANSI_RESET + ": " + String.join(" ", messageBody));
+                            System.out.println(
+                                    ANSI_SERVER + sender + ANSI_RESET + ": " + String.join(" ", messageBody));
                         }
                     }
                     case "timeout" -> {
@@ -93,6 +96,14 @@ public class ClientReceiveMessage extends Thread {
                                            ANSI_RESET);
                         client.setLoginStatus(false);
                         client.setUser(null);
+                    }
+                    case "startprivate" -> {
+                        String responseType = messageBody[0];
+                        String responseMsg = messageBody[1];
+                        startPrivateMsg(responseType, responseMsg);
+                    }
+                    case "SERVER" -> {
+                        System.out.println(String.join(" ", messageBody));
                     }
                 }
             } catch (Exception e) {
@@ -121,20 +132,27 @@ public class ClientReceiveMessage extends Thread {
             case "USERNAME" -> {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": username is invalid! " +
                                    "Please" + " try again or register a new account!");
-                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------" + ANSI_RESET);
+                System.out.println(
+                        ANSI_BOLD + "----------------------------------------------------------------------" +
+                        ANSI_RESET);
             }
             case "BLOCKED" -> {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": your account is blocked die to multiple " +
                                    "failed login attempts! Please try again later!");
-                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------" + ANSI_RESET);
+                System.out.println(
+                        ANSI_BOLD + "----------------------------------------------------------------------" +
+                        ANSI_RESET);
                 client.setLoginStatus(false);
                 client.setUser(null);
             }
             case "ONLINE" -> {
                 System.out.println(
-                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": this account is already logged in somewhere else. Please" +
+                        ANSI_SERVER + "SERVER" + ANSI_RESET +
+                        ": this account is already logged in somewhere else. Please" +
                         " " + "try another account!");
-                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------" + ANSI_RESET);
+                System.out.println(
+                        ANSI_BOLD + "----------------------------------------------------------------------" +
+                        ANSI_RESET);
             }
             case "SUCCESS" -> {
                 client.setLoginStatus(true);
@@ -172,6 +190,7 @@ public class ClientReceiveMessage extends Thread {
 
     /**
      * Handles responses from the server regarding the status of the message that the user requested to send out
+     *
      * @param response response from the server
      */
     private void message(String[] response) {
@@ -193,12 +212,13 @@ public class ClientReceiveMessage extends Thread {
             }
             case "OFFLINE" -> {
                 System.out.println(
-                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": message is sent but " + ANSI_USER_MENTION + response[1] +
+                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": message is sent but " + ANSI_USER_MENTION +
+                        response[1] +
                         ANSI_RESET + " is offline right now.");
             }
             case "SUCCESS" -> {
                 System.out.println(
-                        ANSI_SERVER + "SERVER" + ": " + ANSI_RESET + ANSI_USER_MENTION + response[1] + ANSI_RESET +
+                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + ANSI_USER_MENTION + response[1] + ANSI_RESET +
                         " have received the message successfully!");
             }
         }
@@ -206,6 +226,7 @@ public class ClientReceiveMessage extends Thread {
 
     /**
      * Handles responses from the server for user's attempt to block another user
+     *
      * @param response response from the server
      */
     private void blockUser(String[] response) {
@@ -220,7 +241,8 @@ public class ClientReceiveMessage extends Thread {
             case "SUCCESS" -> {
                 String target = response[1];
                 System.out.println(
-                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": you have successfully blocked " + ANSI_USER_MENTION + target +
+                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": you have successfully blocked " + ANSI_USER_MENTION +
+                        target +
                         ANSI_RESET + ".");
             }
         }
@@ -228,6 +250,7 @@ public class ClientReceiveMessage extends Thread {
 
     /**
      * Handles responses from the server for user's attempt to unblock another user
+     *
      * @param response response from the server
      */
     private void unblockUser(String[] response) {
@@ -240,13 +263,63 @@ public class ClientReceiveMessage extends Thread {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": user does not exist!");
             }
             case "UNBLOCKED" -> {
-                System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + ANSI_USER_MENTION + response[1] + ANSI_RESET +
-                                   " was already unblocked.");
+                System.out.println(
+                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + ANSI_USER_MENTION + response[1] + ANSI_RESET +
+                        " was already unblocked.");
             }
             case "SUCCESS" -> {
                 System.out.println(
                         ANSI_SERVER + "SERVER" + ANSI_RESET + ": you have successfully unblocked " + ANSI_USER_MENTION +
                         response[1] + ANSI_RESET + ".");
+            }
+        }
+    }
+
+    /**
+     * Handles responds from the server regarding private messaging
+     * @param type the type of response
+     * @param response the message body of the response
+     */
+    private void startPrivateMsg(String type, String response) {
+        switch (type) {
+            case "REQUEST" -> {
+                switch (response) {
+                    case "SELF" -> {
+                        System.out.println(
+                                ANSI_SERVER + "SERVER" + ANSI_RESET + ": you can not start private messaging " +
+                                "with yourself!");
+                    }
+                    case "USERNAME" -> {
+                        System.out.println(
+                                ANSI_SERVER + "SERVER" + ANSI_RESET + ": user does not exist!");
+                    }
+                    case "BLOCKED" -> {
+                        System.out.println(
+                                ANSI_SERVER + "SERVER" + ANSI_RESET + ": you do not have the permission to " +
+                                "start private messaging with the user!");
+                    }
+                    case "SENT" -> {
+                        System.out.println(
+                                ANSI_SERVER + "SERVER" + ANSI_RESET + ": an invitation has sent to the user. " +
+                                "Please wait for an response.");
+                    }
+                }
+            }
+            case "INVITE" -> {
+                System.out.println(
+                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + ANSI_USER_MENTION + response + ANSI_RESET + " " +
+                        "wants to send private messages to you. Type " + ANSI_RED + "startprivate <user> <yes/no>" +
+                        ANSI_RESET + " to respond to this invitation.");
+
+            }
+            case "RESPONSE" -> {
+                if (response.equals("SUCCESS")) {
+                    System.out.println(
+                            ANSI_SERVER + "SERVER" + ANSI_RESET + ": the user accepted your invitation!");
+                } else {
+                    System.out.println(
+                            ANSI_SERVER + "SERVER" + ANSI_RESET + ": the user declined your invitation!");
+                }
             }
         }
     }

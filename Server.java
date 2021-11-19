@@ -116,7 +116,6 @@ public class Server {
             if (user != null && (!user.getUsername().equals(sender))) {
                 if (type.equals("presence")) {
                     if (!senderInfo.isUserBlacklisted(user.getUsername())) {
-                        System.out.println(sender + " " + user.getUsername());
                         packet.setSender("SERVER");
                         client.receiveBroadcast(packet);
                     }
@@ -229,15 +228,25 @@ public class Server {
         System.out.println("===== Server is running =====");
         System.out.println("===== Waiting for connection request from clients...=====");
 
+        // Start the P2P server
+        ServerSocket p2pSocket = new ServerSocket(0);
+        P2P p2p = new P2P(p2pSocket);
+        p2p.start();
+
+        Socket clientSocket = null;
         while (true) {
-            // when new connection request reaches the server, then server socket establishes connection
-            Socket clientSocket = serverSocket.accept();
-            // for each user there would be one thread, all the request/response for that user would be processed in
-            // that thread
-            // different users will be working in different thread which is multi-threading (i.e., concurrent)
-            ClientThread clientThread = new ClientThread(server, clientSocket);
-            clients.add(clientThread);
-            clientThread.start();
+            try {
+                // when new connection request reaches the server, then server socket establishes connection
+                clientSocket = serverSocket.accept();
+                // for each user there would be one thread, all the request/response for that user would be processed in
+                // that thread
+                // different users will be working in different thread which is multi-threading (i.e., concurrent)
+                ClientThread clientThread = new ClientThread(server, clientSocket, p2p);
+                clients.add(clientThread);
+                clientThread.start();
+            } catch (Exception e) {
+                break;
+            }
         }
     }
 }

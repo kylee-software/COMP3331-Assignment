@@ -144,6 +144,10 @@ public class ClientSendMessage extends Thread {
                                 logout();
                                 sendMessage("logout", "N/A");
                             }
+                            case "startprivate" -> {
+                                sendMessage(command[0], String.join(" ", Arrays.copyOfRange(command, 1,
+                                                                                            command.length)));
+                            }
                             case "exit" -> {
                                 logout();
                                 // send a message to server to close input stream
