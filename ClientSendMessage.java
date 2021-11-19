@@ -1,8 +1,10 @@
+import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
 
 public class ClientSendMessage extends Thread {
@@ -35,7 +37,6 @@ public class ClientSendMessage extends Thread {
     public void run() {
         super.run();
 
-        boolean loadUnreadMsg = true;
         while (true) {
             try {
                 Thread.sleep(100);
@@ -44,15 +45,16 @@ public class ClientSendMessage extends Thread {
 
                 if (!isLoggedIn) {
                     if (user == null) {
-                        System.out.println(ANSI_BOLD + "============= Welcome to the Greatest Messaging System! " +
-                                              "=============" + ANSI_RESET);
+                        System.out.println(ANSI_BOLD + "\n============= Welcome to the Greatest Messaging System! " +
+                                           "=============" + ANSI_RESET);
                         System.out.print("login or register: ");
 
                         String choice = reader.readLine();
 
                         switch (choice) {
                             case "login" -> {
-                                System.out.println("------------- " + ANSI_BOLD + "Login" + ANSI_RESET + " -------------");
+                                System.out.println(
+                                        "------------- " + ANSI_BOLD + "Login" + ANSI_RESET + " -------------");
                                 // ask to log in if user hasn't logged in yet
                                 System.out.print("Username: ");
                                 String username = reader.readLine();
@@ -77,8 +79,9 @@ public class ClientSendMessage extends Thread {
                             default -> {
                                 // prevent user from using other commands before logged in
                                 System.out.println(ANSI_RED + ANSI_BOLD + "Error" + ANSI_RESET + ": Invalid Command!");
-                                System.out.println(ANSI_BOLD + "========================================================" +
-                                                   "=============\n" + ANSI_RESET);
+                                System.out.println(ANSI_BOLD +
+                                                   "----------------------------------------------------------------------" +
+                                                   ANSI_RESET);
                             }
                         }
                     } else {
@@ -87,75 +90,74 @@ public class ClientSendMessage extends Thread {
                         sendMessage("login", user + " " + password);
                     }
                 } else {
-                    if (loadUnreadMsg) {
-                        System.out.println("Checking for unread messages......");
-                        sendMessage("messages", "N/A");
-                        loadUnreadMsg = false;
-                    }
+                    // if user hasn't entered any input, go back to top of the loop
+                    // this is for when server send multiple responses back to the client that would chanage the login
+                    // status
+                    if (reader.ready()) {
+                        // allow users to use excluded features after they logged in
+                        String[] command = reader.readLine().split(" ");
 
-                    // allow users to use excluded features after they logged in
-                    String[] command = reader.readLine().split(" ");
-
-                    switch (command[0]) {
-                        case "message" -> {
-                            try {
-                                String messageBody = String.join(" ", Arrays.copyOfRange(command, 1,
-                                                                                    command.length));
-                                sendMessage("message", messageBody);
-                            } catch (Exception e) {
-                                System.out.println(invalidCommandMsg(command[0]));
+                        switch (command[0]) {
+                            case "message" -> {
+                                try {
+                                    String messageBody = String.join(" ", Arrays.copyOfRange(command, 1,
+                                                                                             command.length));
+                                    sendMessage("message", messageBody);
+                                } catch (Exception e) {
+                                    System.out.println(invalidCommandMsg(command[0]));
+                                }
                             }
-                        }
-                        case "broadcast" -> {
-                            try {
-                                String messageBody = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
-                                sendMessage("broadcast", messageBody);
-                            } catch (Exception e) {
-                                System.out.println(invalidCommandMsg(command[0]));
+                            case "broadcast" -> {
+                                try {
+                                    String messageBody =
+                                            String.join(" ", Arrays.copyOfRange(command, 1, command.length));
+                                    sendMessage("broadcast", messageBody);
+                                } catch (Exception e) {
+                                    System.out.println(invalidCommandMsg(command[0]));
+                                }
                             }
-                        }
-                        case "whoelse" -> {
-                            sendMessage("whoelse", "N/A");
-                        }
-                        case "whoelsesince" -> {
-                            try {
-                                sendMessage("whoelsesince", command[1]);
-                            } catch (Exception e) {
-                                System.out.println(invalidCommandMsg(command[0]));
+                            case "whoelse" -> {
+                                sendMessage("whoelse", "N/A");
                             }
-                        }
-                        case "block" -> {
-                            try {
-                                sendMessage("block", command[1]);
-                            } catch (Exception e) {
-                                System.out.println(invalidCommandMsg(command[0]));
+                            case "whoelsesince" -> {
+                                try {
+                                    sendMessage("whoelsesince", command[1]);
+                                } catch (Exception e) {
+                                    System.out.println(invalidCommandMsg(command[0]));
+                                }
                             }
-                        }
-                        case "unblock" -> {
-                            try {
-                                sendMessage("unblock", command[1]);
-                            } catch (Exception e) {
-                                System.out.println(invalidCommandMsg(command[0]));
+                            case "block" -> {
+                                try {
+                                    sendMessage("block", command[1]);
+                                } catch (Exception e) {
+                                    System.out.println(invalidCommandMsg(command[0]));
+                                }
                             }
-                        }
-                        case "logout" -> {
-                            loadUnreadMsg = true;
-                            logout();
-                            sendMessage("logout", "N/A");
-                        }
-                        case "exit" -> {
-                            loadUnreadMsg = true;
-                            logout();
-                            // send a message to server to close input stream
-                            sendMessage("exit", "N/A");
-                            clientSocket.close();
-                            outputStream.close();
-                        }
-                        default -> {
-                            // prevent user from using invalid commands before logged in
-                            System.out.println(ANSI_RED + ANSI_BOLD + "Error" + ANSI_RESET + ": Invalid Command!");
-                            System.out.println( ANSI_BOLD +
-                                                "----------------------------------------------------------------------\n" + ANSI_RESET);
+                            case "unblock" -> {
+                                try {
+                                    sendMessage("unblock", command[1]);
+                                } catch (Exception e) {
+                                    System.out.println(invalidCommandMsg(command[0]));
+                                }
+                            }
+                            case "logout" -> {
+                                logout();
+                                sendMessage("logout", "N/A");
+                            }
+                            case "exit" -> {
+                                logout();
+                                // send a message to server to close input stream
+                                sendMessage("exit", "N/A");
+                                clientSocket.close();
+                                outputStream.close();
+                            }
+                            default -> {
+                                // prevent user from using invalid commands before logged in
+                                System.out.println(ANSI_RED + ANSI_BOLD + "Error" + ANSI_RESET + ": Invalid Command!");
+                                System.out.println(ANSI_BOLD +
+                                                   "----------------------------------------------------------------------" +
+                                                   ANSI_RESET);
+                            }
                         }
                     }
                 }

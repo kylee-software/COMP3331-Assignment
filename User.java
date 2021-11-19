@@ -18,6 +18,7 @@ public class User {
         this.loginStatus = "OFFLINE";
         blacklist = new ArrayList<>();
         packets = new ArrayList<>();
+        lastLogin = LocalDateTime.of(0, 1, 1, 0, 0, 0);
     }
 
     public String getUsername() {

@@ -1,8 +1,9 @@
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.EOFException;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 
@@ -38,6 +39,7 @@ public class ClientThread extends Thread {
     @Override
     public void run() {
         super.run();
+
         // get client Internet Address and port number
         String clientAddress = clientSocket.getInetAddress().getHostAddress();
         int clientPort = clientSocket.getPort();
@@ -72,20 +74,20 @@ public class ClientThread extends Thread {
                         objectOutputStream.flush();
 
                         if (status.equals("SUCCESS")) {
-                            sendPresenceBroadcast("online");
+                            loginSuccess();
                         }
                     }
                     case "register" -> {
                         String username = messageBody[0];
                         String password = messageBody[1];
                         String status = register(username, password);
-                        Packet outputPacket = new Packet("SERVER", "login");
+                        Packet outputPacket = new Packet("SERVER", "register");
                         outputPacket.setMessage(username + " " + status);
                         objectOutputStream.writeObject(outputPacket);
                         objectOutputStream.flush();
 
                         if (status.equals("SUCCESS")) {
-                            sendPresenceBroadcast("online");
+                            loginSuccess();
                         }
                     }
                     case "message" -> {
@@ -98,7 +100,7 @@ public class ClientThread extends Thread {
                     case "broadcast" -> {
                         String username = user.getUsername();
                         Packet broadcastMsg = new Packet(username, "broadcast");
-                        broadcastMsg.setMessage(String.join( " ", messageBody));
+                        broadcastMsg.setMessage(String.join(" ", messageBody));
                         server.broadcast("message", broadcastMsg);
                     }
                     case "whoelse" -> {
@@ -131,6 +133,7 @@ public class ClientThread extends Thread {
                         server.updateUser(user);
                         sendPresenceBroadcast("offline");
                         user = null;
+                        clientSocket.setSoTimeout(0);
                     }
                     case "exit" -> {
                         Packet outputPacket = new Packet("SERVER", "exit");
@@ -141,12 +144,29 @@ public class ClientThread extends Thread {
                         System.out.println("===== the user disconnected, user - " + clientID);
                         clientAlive = false;
                     }
-                    case "messages" -> {
-                        Packet outputPacket = offlineMessages();
-                        objectOutputStream.writeObject(outputPacket);
-                        objectOutputStream.flush();
-                    }
                 }
+            } catch (SocketTimeoutException timeout) {
+                // timeout due to inactivity from the client
+                Packet outputPacket = new Packet("SERVER", "timeout");
+                outputPacket.setMessage("you have logged out due to inactivity.");
+
+                try {
+
+                    // logout
+                    user.setLoginStatus("OFFLINE");
+                    server.updateUser(user);
+                    sendPresenceBroadcast("offline");
+                    user = null;
+
+                    clientSocket.setSoTimeout(0);
+                    objectOutputStream.writeObject(outputPacket);
+                    objectOutputStream.flush();
+
+                } catch (Exception e) {
+                    System.out.println("===== the user disconnected, user - " + clientID);
+                    clientAlive = false;
+                }
+
             } catch (Exception e) {
                 System.out.println("===== the user disconnected, user - " + clientID);
                 clientAlive = false;
@@ -163,9 +183,8 @@ public class ClientThread extends Thread {
          * @param username username of the user who is trying to log in
          * @param password password of the user who is trying to log in
          * @return the response after the information is assessed
-         * @throws Exception throw an exception if an error occurs
          */
-        private String login(String username, String password) throws Exception {
+        private String login(String username, String password) {
             User loginUser = server.getUser(username);
             if (loginUser == null){
                 // check valid username
@@ -198,9 +217,8 @@ public class ClientThread extends Thread {
          * @param username username of the user who is trying to register a new account
          * @param password password of the user who is trying to register a new account
          * @return the response after the information is assessed
-         * @throws Exception throw an exception if an error occurs
          */
-        private String register(String username, String password) throws Exception {
+        private String register(String username, String password) {
             if (server.getUser(username) != null) {
                 return "USERNAME";
             } else {
@@ -213,9 +231,22 @@ public class ClientThread extends Thread {
             }
         }
 
-    /* ┌────────────────────────────────────────────────────────────────┐ */
-    /* │                              Timeout                           │ */
-    /* └────────────────────────────────────────────────────────────────┘ */
+        /**
+         * Perform the following actions when a user logged in successfully
+         * @throws SocketException error when the socket timeout
+         * @throws IOException connection error with client streams
+         */
+        private void loginSuccess() throws SocketException, IOException {
+            // set timeout to the client socket
+            clientSocket.setSoTimeout((int) server.TIMEOUT * 1000);
+            // send presence broadcast to other online users
+            sendPresenceBroadcast("online");
+
+            // read all unread messages
+            Packet outputPacket = offlineMessages();
+            objectOutputStream.writeObject(outputPacket);
+            objectOutputStream.flush();
+        }
 
     /* ┌────────────────────────────────────────────────────────────────┐ */
     /* │                            Broadcasts                          │ */
@@ -224,9 +255,10 @@ public class ClientThread extends Thread {
         /**
          * receive broadcast that was sent by other users
          * @param packet packet contains information about the message
-         * @throws Exception throw an exception when an error occurs
+         * @throws IOException throw this exception when an error occurs with the input/output stream that connects
+         * to the client
          */
-        public void receiveBroadcast(Packet packet) throws Exception {
+        public void receiveBroadcast(Packet packet) throws IOException {
                 objectOutputStream.writeObject(packet);
                 objectOutputStream.flush();
             }
@@ -234,9 +266,10 @@ public class ClientThread extends Thread {
         /**
          * a helper function to send presence broadcast to other users
          * @param type "offline" if a user logged out, "online" if a user logged in
-         * @throws Exception throw an exception when an error occurs
+         * @throws IOException throw this exception when an error occurs with the input/output stream that connects
+         *  to the client
          */
-        private void sendPresenceBroadcast(String type) throws Exception {
+        private void sendPresenceBroadcast(String type) throws IOException {
                 String username = user.getUsername();
                 Packet broadcastMsg = new Packet(username, "broadcast");
                 broadcastMsg.setMessage(username + " is " + type);
@@ -250,9 +283,10 @@ public class ClientThread extends Thread {
         /**
          * send direct message to a user
          * @param packet the packet that contains the information about the message
-         * @throws Exception throw an exception when an error occurs
+         * @throws IOException throw this exception when an error occurs with the input/output stream that connects
+         * to the client
          */
-        private void sendMessage(Packet packet) throws Exception {
+        private void sendMessage(Packet packet) throws IOException {
                 String sender = packet.getSender();
                 String target = packet.getReceiver();
                 User targetUser = server.getUser(target);
@@ -301,6 +335,8 @@ public class ClientThread extends Thread {
                     String senderMsg = message.getMessage();
                     messageBody += ("\n" + "   " + ANSI_USER + sender + ANSI_RESET + ": " + senderMsg);
                 }
+                user.resetMessages();
+                server.updateUser(user);
             } else {
                 messageBody  = "NONE";
             }

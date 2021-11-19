@@ -1,11 +1,13 @@
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Arrays;
 
 public class ClientReceiveMessage extends Thread {
     private Client client;
     private ObjectInputStream inputStream;
+    private Socket clientSocket;
 
     // Text coloring for text
     final String ANSI_RESET = "\u001B[0m";
@@ -17,6 +19,7 @@ public class ClientReceiveMessage extends Thread {
 
     ClientReceiveMessage(Client client, Socket clientSocket) throws IOException {
         this.client = client;
+        this.clientSocket = clientSocket;
         // define ObjectOutputStream instance which would be used to send message to the server
         inputStream = new ObjectInputStream(clientSocket.getInputStream());
     }
@@ -52,6 +55,9 @@ public class ClientReceiveMessage extends Thread {
                                     ANSI_SERVER + sender + ANSI_RESET + ": " + ANSI_USER_MENTION + messageBody[0] +
                                     ANSI_RESET + " " +
                                     String.join(" ", Arrays.copyOfRange(messageBody, 1, messageBody.length)));
+                        } else if (sender.equals("server")) {
+                            System.out.println(
+                                    ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + String.join(" ", messageBody));
                         } else {
                             System.out.println(
                                     ANSI_USER + sender + ANSI_RESET + ": " + String.join(" ", messageBody));
@@ -61,7 +67,7 @@ public class ClientReceiveMessage extends Thread {
                         message(messageBody);
                     }
                     case "whoelse", "whoelsesince" -> {
-                        System.out.println(ANSI_SERVER + sender + ANSI_RESET + " " + String.join(" ", messageBody));
+                        System.out.println(ANSI_SERVER + sender + ANSI_RESET + ": " + String.join(" ", messageBody));
                     }
                     case "block" -> {
                         blockUser(messageBody);
@@ -79,16 +85,26 @@ public class ClientReceiveMessage extends Thread {
                         } else {
                             System.out.println(ANSI_SERVER + sender + ANSI_RESET + ": " + String.join(" ", messageBody));
                         }
-
-                        System.out.println("-----------------------------------\n");
                     }
-                    case "error" -> {
-
+                    case "timeout" -> {
+                        System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + String.join(" ", messageBody));
+                        System.out.println(ANSI_BOLD +
+                                           "----------------------------------------------------------------------" +
+                                           ANSI_RESET);
+                        client.setLoginStatus(false);
+                        client.setUser(null);
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
-                break;
+                System.out.println("Something went wrong! Goodbye.");
+                try {
+                    e.printStackTrace();
+//                    inputStream.close();
+                    clientSocket.close();
+                    break;
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
             }
         }
     }
@@ -105,12 +121,12 @@ public class ClientReceiveMessage extends Thread {
             case "USERNAME" -> {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": username is invalid! " +
                                    "Please" + " try again or register a new account!");
-                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
+                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------" + ANSI_RESET);
             }
             case "BLOCKED" -> {
                 System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": your account is blocked die to multiple " +
                                    "failed login attempts! Please try again later!");
-                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
+                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------" + ANSI_RESET);
                 client.setLoginStatus(false);
                 client.setUser(null);
             }
@@ -118,7 +134,7 @@ public class ClientReceiveMessage extends Thread {
                 System.out.println(
                         ANSI_SERVER + "SERVER" + ANSI_RESET + ": this account is already logged in somewhere else. Please" +
                         " " + "try another account!");
-                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
+                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------" + ANSI_RESET);
             }
             case "SUCCESS" -> {
                 client.setLoginStatus(true);
@@ -126,7 +142,6 @@ public class ClientReceiveMessage extends Thread {
                 System.out.println(
                         ANSI_SERVER + "SERVER" + ANSI_RESET + ": welcome " + ANSI_USER_MENTION + username + ANSI_RESET +
                         "! You have logged in successfully!");
-                System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
             }
             case "PASSWORD" -> {
                 client.setUser(username);
@@ -145,7 +160,7 @@ public class ClientReceiveMessage extends Thread {
     private void register(String loginStatus, String username) throws Exception {
         if (loginStatus.equals("USERNAME")) {
             System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": account with this username is already " +
-                               "existed! Please try a different username");
+                               "existed! Please try a different username.");
         } else {
             client.setLoginStatus(true);
             client.setUser(username);
@@ -153,7 +168,6 @@ public class ClientReceiveMessage extends Thread {
                                ": you have successfully created an account! Welcome to the SQUAD " + ANSI_USER_MENTION +
                                username + ANSI_RESET + "!");
         }
-        System.out.println(ANSI_BOLD + "----------------------------------------------------------------------\n" + ANSI_RESET);
     }
 
     /**
@@ -184,7 +198,7 @@ public class ClientReceiveMessage extends Thread {
             }
             case "SUCCESS" -> {
                 System.out.println(
-                        ANSI_SERVER + "SERVER" + ": " + ANSI_USER_MENTION + response[1] + ANSI_RESET +
+                        ANSI_SERVER + "SERVER" + ": " + ANSI_RESET + ANSI_USER_MENTION + response[1] + ANSI_RESET +
                         " have received the message successfully!");
             }
         }

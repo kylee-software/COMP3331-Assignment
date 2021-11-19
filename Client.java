@@ -41,15 +41,19 @@ public class Client {
 
         Client client = new Client();
 
-        // define socket for client
-        Socket clientSocket = new Socket(serverHost, serverPort);
+        try {
+            // define socket for client
+            Socket clientSocket = new Socket(serverHost, serverPort);
 
-        // function for sending messages to the server
-        ClientSendMessage clientSendMessageThread = new ClientSendMessage(client, clientSocket);
-        // function for receiving messages from the server
-        ClientReceiveMessage clientReceiveMessageThread = new ClientReceiveMessage(client, clientSocket);
+            // function for sending messages to the server
+            ClientSendMessage clientSendMessageThread = new ClientSendMessage(client, clientSocket);
+            // function for receiving messages from the server
+            ClientReceiveMessage clientReceiveMessageThread = new ClientReceiveMessage(client, clientSocket);
 
-        clientSendMessageThread.start();
-        clientReceiveMessageThread.start();
+            clientSendMessageThread.start();
+            clientReceiveMessageThread.start();
+        } catch (ConnectException connectException) {
+            System.out.println("The server has not yet been initialized.");
+        }
     }
 }
