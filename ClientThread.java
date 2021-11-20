@@ -1,11 +1,7 @@
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
+import java.io.*;
+import java.net.*;
+import java.util.*;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 
 public class ClientThread extends Thread {
     private final Server server;
@@ -15,7 +11,6 @@ public class ClientThread extends Thread {
     private ObjectOutputStream objectOutputStream;
     // used to acquire input from client
     private ObjectInputStream objectInputStream;
-    private P2P p2p;
 
     // Text coloring for text
     final String ANSI_RESET = "\u001B[0m";
@@ -23,10 +18,9 @@ public class ClientThread extends Thread {
     final String ANSI_BOLD = "\u001B[1m";
     final String ANSI_SERVER = "\u001B[34m" + ANSI_BOLD;
 
-    ClientThread(Server server, Socket clientSocket, P2P p2p) {
+    ClientThread(Server server, Socket clientSocket) {
         this.server = server;
         this.clientSocket = clientSocket;
-        this.p2p = p2p;
     }
 
     /**
@@ -142,40 +136,16 @@ public class ClientThread extends Thread {
                     case "startprivate" -> {
                         String target = messageBody[0];
 
-                        if (messageBody[1] == null) {
+                        // response to an invitation: <user> <response>
+                        // request to start a private messaging: <user>
+                        if (messageBody.length < 2) {
                             startPrivateMsg(target);
                         } else {
-                            // send the response of an invitation back to the requester
-                            Packet targetPacket = new Packet("SERVER", "SERVER");
-                            Packet outputPacket = new Packet("SERVER", "SERVER");
-                            String msg = "";
-                            if (messageBody[1].equals("yes")){
-                                // set up the connection
-                                int port = clientSocket.getPort();
-//                                String socketInfo = target + " " + user.getUsername() + " " + Integer.toString(port);
-
-                                if (p2p.createConnection(target, user.getUsername(), port)) {
-                                    msg = ANSI_SERVER + "SERVER" + ANSI_RESET + ": start private " +
-                                                       "messaging with " + target;
-                                    msg += ANSI_BOLD + "\n================= PRIVATE MESSAGING " +
-                                                       "=================" + ANSI_RESET;
-                                } else {
-                                    msg = ANSI_SERVER + "SERVER" + ANSI_RESET + ": failed to make " +
-                                                       "private connection with " + target;
-                                }
-                                // notify the requester about user's decision
-                                targetPacket.setMessage(msg);
-                                outputPacket.setMessage(msg);
-                                objectOutputStream.writeObject(outputPacket);
-                                objectOutputStream.flush();
-
-                            } else {
-                                msg = ANSI_SERVER + "SERVER" + ANSI_RESET + ": the user declined your invitation!";
-                                targetPacket.setMessage(msg);
-                            }
-                            ClientThread requesterThread = server.getClientServer(target);
-                            requesterThread.receiveBroadcast(targetPacket);
+                            createConnection(target, messageBody[1]);
                         }
+                    }
+                    case "private" -> {
+                        String target = messageBody[0];
 
                     }
                     case "exit" -> {
@@ -194,7 +164,6 @@ public class ClientThread extends Thread {
                 outputPacket.setMessage("you have logged out due to inactivity.");
 
                 try {
-
                     // logout
                     user.setLoginStatus("OFFLINE");
                     server.updateUser(user);
@@ -211,6 +180,7 @@ public class ClientThread extends Thread {
                 }
 
             } catch (Exception e) {
+                e.printStackTrace();
                 System.out.println("===== the user disconnected, user - " + clientID);
                 clientAlive = false;
             }
@@ -355,6 +325,12 @@ public class ClientThread extends Thread {
             objectOutputStream.flush();
         }
 
+        /**
+         * Check user's eligibility to start a private messaging.
+         * If eligible, send an invitation request to the target user
+         * @param target the target user
+         * @throws IOException throw an exception when an error occurs
+         */
         private void startPrivateMsg(String target) throws IOException {
             User targetInfo = server.getUser(target);
             Packet outputPacket = new Packet(user.getUsername(), "startprivate");
@@ -387,6 +363,38 @@ public class ClientThread extends Thread {
                 clientThread.receiveBroadcast(requestInvite);
             }
 
+        }
+
+        /**
+         * Attempt to create a private connection after target user
+         * accepted the invitation to a private messaging
+         * @param target the requester who initiated the private connection
+         * @param response the response to the invitation
+         */
+        private void createConnection(String target, String response) throws Exception {
+            // send the response of an invitation back to the requester
+            Packet targetPacket = new Packet("SERVER", "startprivate");
+            Packet outputPacket = new Packet("SERVER", "startprivate");
+            String targetMsg = "";
+            String outputMsg = "";
+            if (response.equals("yes")){
+                targetMsg = "REQUEST SUCCESS " + user.getUsername();
+                targetPacket.setMessage(targetMsg);
+                ClientThread requesterThread = server.getClientServer(target);
+                requesterThread.receiveBroadcast(targetPacket);
+
+                Thread.sleep(100);
+                outputMsg = "RESPONSE YES " + target;
+                outputPacket.setMessage(outputMsg);
+                objectOutputStream.writeObject(outputPacket);
+                objectOutputStream.flush();
+
+            } else {
+                targetMsg = "REQUEST FAIL " + user.getUsername();
+                targetPacket.setMessage(targetMsg);
+                ClientThread requesterThread = server.getClientServer(target);
+                requesterThread.receiveBroadcast(targetPacket);
+            }
         }
 
     /* ┌────────────────────────────────────────────────────────────────┐ */

@@ -1,15 +1,13 @@
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
-import java.net.SocketException;
-import java.util.Arrays;
+import java.io.*;
+import java.net.*;
+import java.util.*;
 
 public class ClientReceiveMessage extends Thread {
     private Client client;
-    private ObjectOutputStream outputStream;
     private ObjectInputStream inputStream;
     private Socket clientSocket;
+    private P2P p2p;
+    private int p2pPort;
 
     // Text coloring for text
     final String ANSI_RESET = "\u001B[0m";
@@ -19,9 +17,11 @@ public class ClientReceiveMessage extends Thread {
     final String ANSI_RED = "\u001B[31m";
     final String ANSI_USER_MENTION = ANSI_RED + "\u001B[4m";
 
-    ClientReceiveMessage(Client client, Socket clientSocket) throws IOException {
+    ClientReceiveMessage(Client client, Socket clientSocket, P2P p2p, int p2pPort) throws IOException {
         this.client = client;
         this.clientSocket = clientSocket;
+        this.p2p = p2p;
+        this.p2pPort = p2pPort;
         // define ObjectOutputStream instance which would be used to send message to the server
         inputStream = new ObjectInputStream(clientSocket.getInputStream());
     }
@@ -99,7 +99,7 @@ public class ClientReceiveMessage extends Thread {
                     }
                     case "startprivate" -> {
                         String responseType = messageBody[0];
-                        String responseMsg = messageBody[1];
+                        String[] responseMsg = Arrays.copyOfRange(messageBody, 1, messageBody.length);
                         startPrivateMsg(responseType, responseMsg);
                     }
                     case "SERVER" -> {
@@ -109,8 +109,7 @@ public class ClientReceiveMessage extends Thread {
             } catch (Exception e) {
                 System.out.println("Something went wrong! Goodbye.");
                 try {
-                    e.printStackTrace();
-//                    inputStream.close();
+                    inputStream.close();
                     clientSocket.close();
                     break;
                 } catch (IOException ex) {
@@ -277,13 +276,15 @@ public class ClientReceiveMessage extends Thread {
 
     /**
      * Handles responds from the server regarding private messaging
-     * @param type the type of response
+     *
+     * @param type     the type of response
      * @param response the message body of the response
      */
-    private void startPrivateMsg(String type, String response) {
+    private void startPrivateMsg(String type, String[] response) {
         switch (type) {
             case "REQUEST" -> {
-                switch (response) {
+                String status = response[0];
+                switch (status) {
                     case "SELF" -> {
                         System.out.println(
                                 ANSI_SERVER + "SERVER" + ANSI_RESET + ": you can not start private messaging " +
@@ -303,22 +304,48 @@ public class ClientReceiveMessage extends Thread {
                                 ANSI_SERVER + "SERVER" + ANSI_RESET + ": an invitation has sent to the user. " +
                                 "Please wait for an response.");
                     }
+                    case "SUCCESS" -> {
+                        String target = response[1];
+                        p2p.start();
+                        if (p2p.createConnection(client.getUser(), response[1], p2pPort)) {
+                            System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": start private " +
+                                               "messaging with " + ANSI_USER_MENTION + target + ANSI_RESET + ".");
+                            System.out.println(ANSI_BOLD + "================= PRIVATE MESSAGING " +
+                                               "=================" + ANSI_RESET);
+                        } else {
+                            System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": failed to make " + "private " +
+                                               "connection with " + ANSI_USER_MENTION + target + ANSI_RESET + ".");
+                        }
+                    }
+                    case "FAIL" -> {
+                        String target = response[1];
+                        System.out.println(
+                                ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + ANSI_USER_MENTION + target + ANSI_RESET +
+                                " declined your invitations.");
+                    }
                 }
             }
             case "INVITE" -> {
                 System.out.println(
-                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + ANSI_USER_MENTION + response + ANSI_RESET + " " +
+                        ANSI_SERVER + "SERVER" + ANSI_RESET + ": " + ANSI_USER_MENTION + response[0] + ANSI_RESET +
+                        " " +
                         "wants to send private messages to you. Type " + ANSI_RED + "startprivate <user> <yes/no>" +
                         ANSI_RESET + " to respond to this invitation.");
 
             }
             case "RESPONSE" -> {
-                if (response.equals("SUCCESS")) {
-                    System.out.println(
-                            ANSI_SERVER + "SERVER" + ANSI_RESET + ": the user accepted your invitation!");
-                } else {
-                    System.out.println(
-                            ANSI_SERVER + "SERVER" + ANSI_RESET + ": the user declined your invitation!");
+                String status = response[0];
+                String target = response[1];
+                if (status.equals("YES")) {
+                    if (p2p.isConnectionActive(target)) {
+                        System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": start private " +
+                                           "messaging with " + ANSI_USER_MENTION + target + ANSI_RESET + ".");
+                        System.out.println(ANSI_BOLD + "================= PRIVATE MESSAGING " +
+                                           "=================" + ANSI_RESET);
+                    } else {
+                        System.out.println(ANSI_SERVER + "SERVER" + ANSI_RESET + ": failed to make " +
+                                           "private connection with " + ANSI_USER_MENTION + target + ANSI_RESET + ".");
+                    }
                 }
             }
         }

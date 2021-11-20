@@ -8,13 +8,11 @@
  * Date: 2021-09-28
  * */
 
-import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.io.*;
+import java.net.*;
+import java.util.*;
 
 public class Server {
 
@@ -228,11 +226,6 @@ public class Server {
         System.out.println("===== Server is running =====");
         System.out.println("===== Waiting for connection request from clients...=====");
 
-        // Start the P2P server
-        ServerSocket p2pSocket = new ServerSocket(0);
-        P2P p2p = new P2P(p2pSocket);
-        p2p.start();
-
         Socket clientSocket = null;
         while (true) {
             try {
@@ -241,7 +234,7 @@ public class Server {
                 // for each user there would be one thread, all the request/response for that user would be processed in
                 // that thread
                 // different users will be working in different thread which is multi-threading (i.e., concurrent)
-                ClientThread clientThread = new ClientThread(server, clientSocket, p2p);
+                ClientThread clientThread = new ClientThread(server, clientSocket);
                 clients.add(clientThread);
                 clientThread.start();
             } catch (Exception e) {

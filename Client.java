@@ -12,6 +12,7 @@ import java.net.*;
 public class Client {
     private boolean isLoggedIn = false;
     private String user = null;
+    private int portCount;
 
     public void setLoginStatus(boolean isLoggedIn) {
         this.isLoggedIn = isLoggedIn;
@@ -41,14 +42,19 @@ public class Client {
 
         Client client = new Client();
 
+        // Start the P2P server
+        ServerSocket p2pSocket = new ServerSocket(0);
+        P2P p2p = new P2P(p2pSocket);
+
         try {
             // define socket for client
             Socket clientSocket = new Socket(serverHost, serverPort);
 
             // function for sending messages to the server
-            ClientSendMessage clientSendMessageThread = new ClientSendMessage(client, clientSocket);
+            ClientSendMessage clientSendMessageThread = new ClientSendMessage(client, clientSocket, p2p,
+                                                                              p2pSocket.getLocalPort());
             // function for receiving messages from the server
-            ClientReceiveMessage clientReceiveMessageThread = new ClientReceiveMessage(client, clientSocket);
+            ClientReceiveMessage clientReceiveMessageThread = new ClientReceiveMessage(client, clientSocket, p2p, p2pSocket.getLocalPort());
 
             clientSendMessageThread.start();
             clientReceiveMessageThread.start();

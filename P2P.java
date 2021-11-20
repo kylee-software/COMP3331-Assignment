@@ -1,11 +1,10 @@
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
+import java.util.*;
 
 public class P2P extends Thread {
     private ServerSocket p2pSocket;
-    private ArrayList<P2PThread> connections;
+    private HashMap<String, P2PThread> connections;
 
     // text styling
     final String ANSI_RESET = "\u001B[0m";
@@ -13,7 +12,7 @@ public class P2P extends Thread {
 
     P2P(ServerSocket p2pSocket) {
         this.p2pSocket = p2pSocket;
-        this.connections = new ArrayList<>();
+        this.connections = new HashMap<>();
     }
 
     @Override
@@ -23,14 +22,14 @@ public class P2P extends Thread {
         while (true) {
             try {
                 clientSocket = p2pSocket.accept();
-//                DataOutputStream outputStream = new DataOutputStream(clientSocket.getOutputStream());
-//                DataInputStream inputStream = new DataInputStream(clientSocket.getInputStream());
-//                // the peer that initiated the connection
-//                String peer = inputStream.readUTF();
-//                // p2p connection for the user that is being invited
-//                P2PThread p2PThread = new P2PThread(clientSocket, peer, outputStream, inputStream);
-//                connections.add(p2PThread);
-//                p2PThread.start();
+                DataOutputStream outputStream = new DataOutputStream(clientSocket.getOutputStream());
+                DataInputStream inputStream = new DataInputStream(clientSocket.getInputStream());
+                // the peer that initiated the connection
+                String peer = inputStream.readUTF();
+                // p2p connection for the sender
+                P2PThread p2PThread = new P2PThread(clientSocket, peer, outputStream, inputStream);
+                connections.put(peer, p2PThread);
+                p2PThread.start();
             } catch (Exception e) {
                 break;
             }
@@ -42,17 +41,19 @@ public class P2P extends Thread {
             Socket connectionSocket = new Socket(InetAddress.getLocalHost(), port);
             DataOutputStream outputStream = new DataOutputStream(connectionSocket.getOutputStream());
             DataInputStream inputStream = new DataInputStream(connectionSocket.getInputStream());
-            // p2p thread for the user requested the connection
-            P2PThread senderThread = new P2PThread(connectionSocket, sender, outputStream, inputStream);
-            connections.add(senderThread);
+            outputStream.writeUTF(sender);
+//            // p2p thread for the user requested the connection
+//            P2PThread senderThread = new P2PThread(connectionSocket, sender, outputStream, inputStream);
+//            connections.add(senderThread);
             // p2p thread for the user that is being invited to the connection
             P2PThread targetThread = new P2PThread(connectionSocket, target, outputStream, inputStream);
-            connections.add(targetThread);
+            connections.put(target, targetThread);
 
-            senderThread.start();
+//            senderThread.start();
             targetThread.start();
             return true;
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -63,25 +64,28 @@ public class P2P extends Thread {
      * @param message the message to be sent
      */
     public void sendMessage(String target, String message) {
-        for (P2PThread p2PThread : connections) {
-            if (p2PThread.getPeer().equals(target) && p2PThread.isAlive()) {
-                p2PThread.sendMessage(message);
-                return;
-            }
+        P2PThread targetThread = connections.get(target);
+        if (targetThread.isAlive()) {
+            targetThread.sendMessage(message);
+            return;
         }
         System.out.println(ANSI_RED + "ERROR" + ANSI_RESET + ": private messaging to " + target + " has not been " +
                            "established.");
     }
 
     /**
-     * close all private connections
+     * close the private connection when user logged out
      */
     public void closeConnections() {
-        for (P2PThread p2PThread : connections) {
+        for (P2PThread p2PThread : connections.values()) {
             if (p2PThread.isAlive()) {
                 p2PThread.sendMessage("stopprivate");
             }
         }
+    }
+
+    public boolean isConnectionActive(String username) {
+        return connections.get(username) != null;
     }
 
 }

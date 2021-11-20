@@ -1,11 +1,6 @@
-import java.awt.*;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.util.Arrays;
+import java.io.*;
+import java.net.*;
+import java.util.*;
 
 public class ClientSendMessage extends Thread {
     private Client client;
@@ -14,17 +9,21 @@ public class ClientSendMessage extends Thread {
     private final BufferedReader reader;
     private boolean isLoggedIn;
     private String user;
+    private P2P p2p;
+    private int p2pPort;
 
     // coloring text
     final String ANSI_RESET = "\u001B[0m";
     final String ANSI_RED = "\u001B[31m";
     final String ANSI_BOLD = "\u001B[1m";
 
-    ClientSendMessage(Client client, Socket clientSocket) throws IOException {
+    ClientSendMessage(Client client, Socket clientSocket, P2P p2p, int p2pPort) throws IOException {
         this.client = client;
         this.clientSocket = clientSocket;
         // define ObjectInputStream instance which would be used to receive response from the server
         this.outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+        this.p2p = p2p;
+        this.p2pPort = p2pPort;
 
         // define a BufferedReader to get command from command line i.e., standard command from keyboard
         this.reader = new BufferedReader(new InputStreamReader(System.in));
@@ -145,8 +144,15 @@ public class ClientSendMessage extends Thread {
                                 sendMessage("logout", "N/A");
                             }
                             case "startprivate" -> {
-                                sendMessage(command[0], String.join(" ", Arrays.copyOfRange(command, 1,
-                                                                                            command.length)));
+                                sendMessage(command[0], String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
+                            }
+                            case "private" -> {
+                                String target = command[1];
+                                String msg = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
+                                p2p.sendMessage(target, msg);
+                            }
+                            case "stopprivate" -> {
+                                p2p.sendMessage(command[1], "stopprivate");
                             }
                             case "exit" -> {
                                 logout();
